@@ -5,6 +5,31 @@ const commonRepository = require('../repositories/commonRepository');
 const vehicleRepository = require('../repositories/vehicleRepository');
 const propertyRepository = require('../repositories/propertyRepository');
 
+class InquiryService {
+    // Admin-specific methods
+    async getAllInquiriesForAdmin({ page, limit, status, rentalType, startDate, endDate }) {
+        return inquiryRepository.getAllInquiriesForAdmin({ page, limit, status, rentalType, startDate, endDate });
+    }
+
+    async getInquiryByIdForAdmin(id) {
+        return inquiryRepository.getInquiryByIdForAdmin(id);
+    }
+
+    async updateInquiryStatus(id, status, remarks, userId) {
+        return inquiryRepository.updateInquiryStatus(id, status, remarks, userId);
+    }
+
+    async deleteInquiry(id) {
+        return inquiryRepository.deleteInquiry(id);
+    }
+
+    async getInquiryStats() {
+        return inquiryRepository.getInquiryStats();
+    }
+}
+
+const inquiryService = new InquiryService();
+
 exports.sendContactDetails = async ({ firstName, lastName, email, phoneNumber, message }) => {
     const companyEmailBody = loadEmailTemplate('email-contact-details.html', { firstName, lastName, email, phoneNumber, message });
 
@@ -138,3 +163,5 @@ exports.sendInquiryDetails = async ({
         throw new Error('Failed to handle the inquiry process.');
     }
 };
+
+module.exports = inquiryService;

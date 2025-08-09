@@ -1,6 +1,7 @@
 // src/services/authService.js
 const bcrypt = require('bcrypt');
 const authRepository = require('../repositories/authRepository');
+const jwtService = require('./jwtService');
 const tokenService = require('./tokenService')
 const db = require('../config/database');
 const { loadEmailTemplate } = require('../helpers/emailTemplateHelper');
@@ -18,22 +19,54 @@ class AuthService {
     const isPasswordValid = await bcrypt.compare(password, admin.password_hash);
     if (!isPasswordValid) throw new Error('Invalid credentials');
 
-    // Return admin details (excluding password_hash)
-    return {
+    // Get admin with permissions
+    const adminWithPermissions = await authRepository.getAdminWithPermissions(admin.id);
+    
+    // Generate JWT token
+    const token = jwtService.generateToken(adminWithPermissions);
+    const refreshToken = jwtService.generateRefreshToken(admin.id);
+
+    // Return admin details with token
+    const result = {
       id: admin.id,
       firstName: admin.firstName,
       lastName: admin.lastName,
       email: admin.email,
       phoneNumber: admin.phoneNumber,
-      isSuperAdmin: admin.isSuperAdmin,
+      role: admin.role,
       isActive: admin.isActive,
-      userName: admin.userName
+      userName: admin.userName,
+      permissions: adminWithPermissions.permissions,
+      token,
+      refreshToken
     };
+
+    return result;
+  }
+
+  async refreshToken(refreshToken) {
+    try {
+      const decoded = jwtService.verifyRefreshToken(refreshToken);
+      const admin = await authRepository.getAdminWithPermissions(decoded.id);
+      
+      if (!admin || !admin.isActive) {
+        throw new Error('Invalid refresh token');
+      }
+
+      const newToken = jwtService.generateToken(admin);
+      return { token: newToken };
+    } catch (error) {
+      throw new Error('Invalid refresh token');
+    }
+  }
+
+  async getAllAdmins() {
+    return authRepository.getAllAdmins();
   }
 
   async registerAdmin(adminData) {
     // Validate required fields
-    const requiredFields = ['firstName', 'lastName', 'userName', 'email', 'password', 'phoneNumber'];
+    const requiredFields = ['firstName', 'lastName', 'userName', 'email', 'password', 'phoneNumber', 'role_id'];
     const missingFields = requiredFields.filter(field => !adminData[field]);
     if (missingFields.length > 0) {
       throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
@@ -51,7 +84,6 @@ class AuthService {
     const dbData = {
       ...adminData,
       password_hash,
-      isSuperAdmin: Boolean(adminData.isSuperAdmin),
       isActive: Boolean(adminData.isActive),
       createdBy: 1,
       createdDate: new Date().toISOString().slice(0, 19).replace('T', ' ')
@@ -80,6 +112,14 @@ class AuthService {
     
     if (!success) throw new Error('Failed to update admin status');
     return { ...admin, isActive: Boolean(isActive) };
+  }
+
+  async getAllRoles() {
+    return authRepository.getAllRoles();
+  }
+
+  async getRolePermissions(roleId) {
+    return authRepository.getRolePermissions(roleId);
   }
 
   async requestPasswordReset(email) {

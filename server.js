@@ -25,13 +25,15 @@ const inquiryRoutes = require('./src/routes/inquiryRoutes');
 const vehicleRoutes = require('./src/routes/vehicleRoutes');
 const propertyRoutes = require('./src/routes/propertyRoutes');
 const commonRoutes = require('./src/routes/commonRoutes');
-const authRoutes = require('./src/routes/authRoutes')
+const authRoutes = require('./src/routes/authRoutes');
+const adminRoutes = require('./src/routes/adminRoutes');
 
 app.use('/api/inquiry', inquiryRoutes);
 app.use('/api/vehicle', vehicleRoutes);
 app.use('/api/property', propertyRoutes);
 app.use('/api/common', commonRoutes);
-app.use('/api/auth', authRoutes)
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error Handling
 app.use((err, req, res, next) => {

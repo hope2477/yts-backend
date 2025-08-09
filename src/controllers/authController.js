@@ -27,6 +27,45 @@ class AuthController {
     }
   }
 
+  async refreshToken(req, res) {
+    try {
+      const { refreshToken } = req.body;
+      
+      if (!refreshToken) {
+        return res.status(400).json({
+          success: false,
+          error: 'Refresh token is required'
+        });
+      }
+
+      const result = await authService.refreshToken(refreshToken);
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      res.status(401).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
+  async getAllAdmins(req, res) {
+    try {
+      const admins = await authService.getAllAdmins();
+      res.json({
+        success: true,
+        data: admins
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
   async registerAdmin(req, res) {
     try {
       const adminData = req.body;
@@ -71,6 +110,37 @@ class AuthController {
 
     } catch (error) {
       res.status(400).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
+  async getAllRoles(req, res) {
+    try {
+      const roles = await authService.getAllRoles();
+      res.json({
+        success: true,
+        data: roles
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
+  async getRolePermissions(req, res) {
+    try {
+      const { roleId } = req.params;
+      const permissions = await authService.getRolePermissions(roleId);
+      res.json({
+        success: true,
+        data: permissions
+      });
+    } catch (error) {
+      res.status(500).json({
         success: false,
         error: error.message
       });
