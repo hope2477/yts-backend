@@ -18,9 +18,29 @@ class PropertyService {
       }
 
       // Admin-specific methods
-      async getAllPropertiesForAdmin({ page, limit, search, status }) {
-        return propertyRepository.getAllPropertiesForAdmin({ page, limit, search, status });
-      }
+      async getAllPropertiesForAdmin({ page, limit, search, status, isFeatured }) {
+        // Validate pagination parameters
+        page = Math.max(1, parseInt(page));
+        limit = Math.max(1, Math.min(parseInt(limit), 100)); // Cap at 100 items per page
+
+        // Validate status filter
+        if (status && !['active', 'inactive'].includes(status)) {
+            throw new Error('Invalid status filter. Must be "active" or "inactive"');
+        }
+
+        // Validate isFeatured filter
+        if (isFeatured !== undefined && typeof isFeatured !== 'boolean') {
+            throw new Error('isFeatured must be a boolean value');
+        }
+
+        return propertyRepository.getAllPropertiesForAdmin({
+            page,
+            limit,
+            search,
+            status,
+            isFeatured
+        });
+    }
 
       async getPropertyByIdForAdmin(id) {
         return propertyRepository.getPropertyByIdForAdmin(id);
@@ -50,9 +70,27 @@ class PropertyService {
         return propertyRepository.updatePropertyAvailability(id, availability, userId);
       }
 
-      async getPropertyFeatures() {
-        return propertyRepository.getPropertyFeatures();
+      async getPropertyFeatures(search) {
+        // Validate search parameter if provided
+        if (search && typeof search !== 'string') {
+            throw new Error('Search parameter must be a string');
+        }
+        
+        return propertyRepository.getPropertyFeatures(search);
+    }
+
+    async updatePropertyFeaturedStatus(id, isFeatured, userId) {
+      // Validate property ID
+      if (!id || typeof id !== 'string') {
+          throw new Error('Invalid property ID');
       }
+
+      return propertyRepository.updatePropertyFeaturedStatus(
+          id, 
+          isFeatured, 
+          userId
+      );
+  }
   }
   
   module.exports = new PropertyService();

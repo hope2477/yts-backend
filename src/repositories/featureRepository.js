@@ -1,7 +1,7 @@
 const db = require('../config/database');
 
 class FeatureRepository {
-  async getAllFeatures(rentalType) {
+  async getAllFeatures(rentalType, search) {
     try {
       let query = `
         SELECT f.id, f.name, f.rentalId, f.isActive, f.createdDate, f.updatedDate,
@@ -16,6 +16,11 @@ class FeatureRepository {
       if (rentalType) {
         query += ' AND rt.name = ?';
         params.push(rentalType);
+      }
+      
+      if (search) {
+        query += ' AND f.name LIKE ?';
+        params.push(`%${search}%`);
       }
       
       query += ' ORDER BY rt.name, f.name';

@@ -3,8 +3,8 @@ const featureService = require('../services/featureService');
 class AdminFeatureController {
   async getAllFeatures(req, res) {
     try {
-      const { rentalType } = req.query;
-      const features = await featureService.getAllFeatures(rentalType);
+      const { rentalType, search } = req.query;
+      const features = await featureService.getAllFeatures(rentalType, search);
       
       res.json({
         success: true,

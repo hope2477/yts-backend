@@ -1,8 +1,8 @@
 const featureRepository = require('../repositories/featureRepository');
 
 class FeatureService {
-  async getAllFeatures(rentalType) {
-    return featureRepository.getAllFeatures(rentalType);
+  async getAllFeatures(rentalType, search) {
+    return featureRepository.getAllFeatures(rentalType, search);
   }
 
   async getFeatureById(id) {

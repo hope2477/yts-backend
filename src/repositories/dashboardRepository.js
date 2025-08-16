@@ -7,7 +7,7 @@ class DashboardRepository {
       const [vehicleCount] = await db.query('SELECT COUNT(*) as count FROM vehicle WHERE isActive = 1');
       const [propertyCount] = await db.query('SELECT COUNT(*) as count FROM property WHERE isActive = 1');
       const [inquiryCount] = await db.query('SELECT COUNT(*) as count FROM inquiry');
-      const [pendingInquiryCount] = await db.query('SELECT COUNT(*) as count FROM inquiry WHERE status = "Pending"');
+      const [pendingInquiryCount] = await db.query('SELECT COUNT(*) as count FROM inquiry WHERE status = "PENDING"');
       
       // Get this month's inquiries
       const [monthlyInquiries] = await db.query(`

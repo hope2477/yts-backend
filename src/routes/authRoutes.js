@@ -13,7 +13,11 @@ router.get('/admins',
   authMiddleware.requirePermission('admin.view'), 
   authController.getAllAdmins
 );
-router.put('/admin/:adminId/status', authController.updateAdminStatus);
+router.put('/admin/:adminId/status',
+  authMiddleware.verifyToken, 
+  authMiddleware.requirePermission('admin.view'), 
+  authController.updateAdminStatus
+);
 router.get('/roles', 
   authMiddleware.verifyToken, 
   authMiddleware.requirePermission('admin.view'), 

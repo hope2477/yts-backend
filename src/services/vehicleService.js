@@ -18,8 +18,19 @@ class VehicleService {
       }
 
       // Admin-specific methods
-      async getAllVehiclesForAdmin({ page, limit, search, status }) {
-        return vehicleRepository.getAllVehiclesForAdmin({ page, limit, search, status });
+      async getAllVehiclesForAdmin({ page, limit, search, isFeatured }) {
+        // Convert isFeatured string to boolean if needed
+        let isFeaturedBool;
+        if (isFeatured !== undefined) {
+          isFeaturedBool = isFeatured === 'true' || isFeatured === true;
+        }
+        
+        return vehicleRepository.getAllVehiclesForAdmin({
+          page: parseInt(page) || 1,
+          limit: parseInt(limit) || 10,
+          search,
+          isFeatured: isFeaturedBool
+        });
       }
 
       async getVehicleByIdForAdmin(id) {
@@ -28,15 +39,22 @@ class VehicleService {
 
       async createVehicle(vehicleData) {
         // Validate required fields
-        const requiredFields = ['make', 'model', 'fuelType', 'transmission', 'numOfPassengers', 'vehicleClass', 'bodyStyle', 'dailyCharge'];
+        const requiredFields = ['make', 'model', 'fuelType', 'transmission', 
+                              'numOfPassengers', 'vehicleClass', 'bodyStyle', 
+                              'dailyCharge', 'createdBy'];
         const missingFields = requiredFields.filter(field => !vehicleData[field]);
         
         if (missingFields.length > 0) {
           throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
         }
 
+        // Ensure createdBy is from the authenticated user
+        if (!vehicleData.createdBy || typeof vehicleData.createdBy !== 'number') {
+          throw new Error('Invalid user identification');
+        }
+
         return vehicleRepository.createVehicle(vehicleData);
-      }
+    }
 
       async updateVehicle(id, updateData) {
         return vehicleRepository.updateVehicle(id, updateData);
@@ -50,8 +68,21 @@ class VehicleService {
         return vehicleRepository.updateVehicleAvailability(id, availability, userId);
       }
 
-      async getVehicleFeatures() {
-        return vehicleRepository.getVehicleFeatures();
+      async getVehicleFeatures(search) {
+        return vehicleRepository.getVehicleFeatures(search);
+      }
+
+      async updateVehicleFeaturedStatus(id, isFeatured, userId) {
+        try {
+          return await vehicleRepository.updateVehicleFeaturedStatus(
+            id, 
+            isFeatured, 
+            userId
+          );
+        } catch (error) {
+          console.error('Error updating vehicle featured status:', error.message);
+          throw new Error('Unable to update vehicle featured status');
+        }
       }
   }
   

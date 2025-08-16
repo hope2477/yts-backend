@@ -71,7 +71,7 @@ exports.sendInquiryDetails = async ({
             email,
             contactNumber: phoneNumber,
             message,
-            status: 'Pending', // Default status
+            status: 'PENDING', // Default status
             remarks: null, // Optional remarks
             rentalTypeID: rentalTypeID || null,
             vehicleID: vehicleID || null,

@@ -64,6 +64,10 @@ router.get('/vehicle-features',
   authMiddleware.requirePermission('vehicle.view'), 
   adminVehicleController.getVehicleFeatures
 );
+router.put('/vehicles/:id/featured-status', 
+  authMiddleware.requirePermission('vehicle.update'), 
+  adminVehicleController.updateFeaturedStatus
+);
 
 // Property management routes
 router.get('/properties', 
@@ -93,6 +97,10 @@ router.put('/properties/:id/availability',
 router.get('/property-features', 
   authMiddleware.requirePermission('property.view'), 
   adminPropertyController.getPropertyFeatures
+);
+router.put('/properties/:id/featured-status', 
+  authMiddleware.requirePermission('property.update'), 
+  adminPropertyController.updatePropertyFeaturedStatus
 );
 
 // Inquiry management routes

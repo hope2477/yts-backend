@@ -15,7 +15,7 @@ class AuthRepository {
         a.isActive,
         a.role_id,
         r.name as role
-       FROM admin 
+       FROM admin a
        LEFT JOIN roles r ON a.role_id = r.id
        WHERE a.email = ?`,
       [email]
