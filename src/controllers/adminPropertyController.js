@@ -1,4 +1,5 @@
 const propertyService = require('../services/propertyService');
+const imageUploadHelper = require('../utils/imageUploadHelper');
 
 class AdminPropertyController {
   async getAllProperties(req, res) {
@@ -63,10 +64,27 @@ class AdminPropertyController {
 
   async createProperty(req, res) {
     try {
+      // Process base64 images if provided
+      let processedImages = { mainImage: '', allImages: [] };
+      
+      if (req.body.base64Images && Array.isArray(req.body.base64Images) && req.body.base64Images.length > 0) {
+        const identifier = req.body.name || 'property';
+        processedImages = await imageUploadHelper.processImagesForCreation(
+          req.body.base64Images, 
+          'property', 
+          identifier
+        );
+      }
+      
       const propertyData = {
         ...req.body,
+        image: processedImages.mainImage, // Set the main image
+        images: processedImages.allImages, // Set all images for database storage
         createdBy: req.user.id
       };
+
+      // Remove base64Images from propertyData to avoid sending to database
+      delete propertyData.base64Images;
 
       // Validate features array if provided
       if (propertyData.features && !Array.isArray(propertyData.features)) {
@@ -109,10 +127,42 @@ class AdminPropertyController {
   async updateProperty(req, res) {
     try {
       const { id } = req.params;
+      
+      // Get existing property data to access current images
+      const existingProperty = await propertyService.getPropertyByIdForAdmin(id);
+      if (!existingProperty) {
+        return res.status(404).json({
+          success: false,
+          error: 'Property not found'
+        });
+      }
+      
+      // Process base64 images if provided
+      let processedImages = { mainImage: '', allImages: [] };
+      
+      if (req.body.base64Images && Array.isArray(req.body.base64Images) && req.body.base64Images.length > 0) {
+        const identifier = req.body.name || existingProperty.name || 'property';
+        processedImages = await imageUploadHelper.processImagesForUpdate(
+          req.body.base64Images,
+          existingProperty.images || [],
+          'property',
+          identifier
+        );
+      } else {
+        // Keep existing images if no new images provided
+        processedImages.mainImage = existingProperty.image || '';
+        processedImages.allImages = existingProperty.images || [];
+      }
+      
       const updateData = {
         ...req.body,
+        image: processedImages.mainImage,
+        images: processedImages.allImages,
         updatedBy: req.user.id
       };
+
+      // Remove base64Images from updateData to avoid sending to database
+      delete updateData.base64Images;
 
       // Validate features array if provided
       if (updateData.features && !Array.isArray(updateData.features)) {

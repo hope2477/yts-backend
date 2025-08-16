@@ -55,6 +55,14 @@ class PropertyService {
           throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
         }
 
+        // Validate image URLs if provided
+        if (propertyData.images && propertyData.images.length > 0) {
+          propertyData.images.forEach((imageUrl, index) => {
+            if (!imageUrl || typeof imageUrl !== 'string') {
+              throw new Error(`Invalid image URL at index ${index}`);
+            }
+          });
+        }
         return propertyRepository.createProperty(propertyData);
       }
 
