@@ -7,7 +7,11 @@ const router = express.Router();
 
 router.post('/login', authController.login);
 router.post('/refresh-token', authController.refreshToken);
-router.post('/register-admin', authController.registerAdmin);
+router.post('/register-admin', 
+  authMiddleware.verifyToken, 
+  authMiddleware.requirePermission('admin.create'), 
+  authController.registerAdmin
+);
 router.get('/admins', 
   authMiddleware.verifyToken, 
   authMiddleware.requirePermission('admin.view'), 

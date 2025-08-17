@@ -7,13 +7,13 @@ class VehicleRepository {
       let query = `
         SELECT 
           v.id, 
-          v.make, 
-          v.model, 
-          v.NumberPlate,
-          v.bodyStyle, 
-          v.transmission, 
-          v.fuelType, 
-          v.vehicleClass, 
+          TRIM(v.make) AS make, 
+          TRIM(v.model) AS model, 
+          TRIM(v.NumberPlate) AS NumberPlate,
+          TRIM(v.bodyStyle) AS bodyStyle, 
+          TRIM(v.transmission) AS transmission, 
+          TRIM(v.fuelType) AS fuelType, 
+          TRIM(v.vehicleClass) AS vehicleClass,
           v.numOfPassengers, 
           v.isFeatured, 
           v.image,
@@ -74,28 +74,45 @@ class VehicleRepository {
     }
   }
 
+
   async getVehicleByIdForAdmin(id) {
     try {
-      // Get vehicle details
+      // Get vehicle details with trimmed string fields
       const [vehicleRows] = await db.query(`
-        SELECT v.*, rt.name as rentalTypeName
+        SELECT 
+          v.id,
+          TRIM(v.make) AS make,
+          TRIM(v.model) AS model,
+          v.year,
+          TRIM(v.fuelType) AS fuelType,
+          TRIM(v.transmission) AS transmission,
+          v.numOfPassengers,
+          TRIM(v.vehicleClass) AS vehicleClass,
+          TRIM(v.bodyStyle) AS bodyStyle,
+          v.isActive,
+          v.isFeatured,
+          v.rentalTypeId,
+          TRIM(rt.name) AS rentalTypeName,
+          v.description,
+          v.color,
+          v.NumberPlate,
+          v.image
         FROM vehicle v
         JOIN rentalType rt ON v.rentalTypeId = rt.id
         WHERE v.id = ?
       `, [id]);
       
       if (vehicleRows.length === 0) return null;
-      
       const vehicle = vehicleRows[0];
-      
+
       // Get features
       const [featureRows] = await db.query(`
-        SELECT f.id, f.name
+        SELECT f.id, TRIM(f.name) AS name
         FROM vehicleFeature vf
         JOIN feature f ON vf.featureId = f.id
         WHERE vf.vehicleId = ?
       `, [id]);
-      
+
       // Get images
       const [imageRows] = await db.query(`
         SELECT image
@@ -103,7 +120,7 @@ class VehicleRepository {
         WHERE vehicleID = ?
         ORDER BY numID
       `, [id]);
-      
+
       // Get availability
       const [availabilityRows] = await db.query(`
         SELECT startDate, endDate
@@ -111,7 +128,7 @@ class VehicleRepository {
         WHERE vehicleId = ?
         ORDER BY startDate
       `, [id]);
-      
+
       return {
         ...vehicle,
         isActive: Boolean(vehicle.isActive),

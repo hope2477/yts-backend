@@ -68,16 +68,20 @@ class AuthRepository {
         a.email,
         a.phoneNumber,
         a.userName,
-        a.isActive,
+        CAST(a.isActive AS UNSIGNED) as isActive,
         a.role_id,
         r.name as role,
         a.createdDate,
         a.updatedDate
-       FROM admin a
-       LEFT JOIN roles r ON a.role_id = r.id
-       ORDER BY a.createdDate DESC`
+      FROM admin a
+      LEFT JOIN roles r ON a.role_id = r.id
+      ORDER BY a.createdDate DESC`
     );
-    return rows;
+
+    return rows.map(row => ({
+      ...row,
+      isActive: row.isActive === 1 || (Buffer.isBuffer(row.isActive) && row.isActive[0] === 1)
+    }));
   }
 
   async createAdmin(adminData) {
@@ -107,7 +111,7 @@ class AuthRepository {
       [email, userName]
     );
     return rows.length > 0;
-  }  
+  }   
   
   async updateAdminStatus(adminId, isActive, updatedBy) {
     const [result] = await db.query(
@@ -163,6 +167,18 @@ class AuthRepository {
     );
     return rows;
   }
+
+  async getRoleById(roleId) {
+    const [rows] = await db.query(
+      `SELECT id, name, description 
+      FROM roles 
+      WHERE id = ? AND isActive = 1 
+      LIMIT 1`,
+      [roleId]
+    );
+    return rows[0];
+  }
+
 }
 
 module.exports = new AuthRepository();

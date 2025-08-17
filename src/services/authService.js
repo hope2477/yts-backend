@@ -6,6 +6,7 @@ const tokenService = require('./tokenService')
 const db = require('../config/database');
 const { loadEmailTemplate } = require('../helpers/emailTemplateHelper');
 const emailHelper = require('../helpers/emailHelper');
+const passwordGenerator = require('../helpers/passwordGenerator')
 
 class AuthService {
   async login(email, password) {
@@ -66,7 +67,7 @@ class AuthService {
 
   async registerAdmin(adminData) {
     // Validate required fields
-    const requiredFields = ['firstName', 'lastName', 'userName', 'email', 'password', 'phoneNumber', 'role_id'];
+    const requiredFields = ['firstName', 'lastName', 'userName', 'email', 'phoneNumber', 'role_id'];
     const missingFields = requiredFields.filter(field => !adminData[field]);
     if (missingFields.length > 0) {
       throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
@@ -76,9 +77,19 @@ class AuthService {
     const exists = await authRepository.adminExists(adminData.email, adminData.userName);
     if (exists) throw new Error('Admin with this email or username already exists');
 
+    // Generate temporary password if not provided
+    let temporaryPassword = null;
+    let password = adminData.password;
+    
+    if (!password) {
+      const tempPasswordData = passwordGenerator.generateTemporaryPassword();
+      temporaryPassword = tempPasswordData.password;
+      password = temporaryPassword;
+    }
+
     // Hash password
     const saltRounds = 10;
-    const password_hash = await bcrypt.hash(adminData.password, saltRounds);
+    const password_hash = await bcrypt.hash(password, saltRounds);
 
     // Prepare data for DB
     const dbData = {
@@ -90,7 +101,46 @@ class AuthService {
     };
 
     // Create admin
-    return await authRepository.createAdmin(dbData);
+    const adminId = await authRepository.createAdmin(dbData);
+
+    // Send welcome email with temporary password if generated
+    if (temporaryPassword) {
+      await this.sendWelcomeEmail(adminData, temporaryPassword);
+    }
+
+    return adminId;
+  }
+
+  async sendWelcomeEmail(adminData, temporaryPassword) {
+    try {
+      // Get role name
+      const role = await authRepository.getRoleById(adminData.role_id);
+      const roleName = role ? role.name : 'Admin';
+
+      const loginUrl = `${process.env.FRONTEND_URL}/admin/sign-in`;
+      
+      const emailBody = loadEmailTemplate('admin-welcome.html', {
+        firstName: adminData.firstName,
+        lastName: adminData.lastName,
+        email: adminData.email,
+        userName: adminData.userName,
+        roleName: roleName,
+        temporaryPassword: temporaryPassword,
+        loginUrl: loginUrl
+      });
+
+      await emailHelper.sendEmail({
+        to: adminData.email,
+        subject: 'Welcome to YTS Enterprise Admin Portal - Your Account Details',
+        html: emailBody
+      });
+
+      console.log(`Welcome email sent to ${adminData.email}`);
+    } catch (error) {
+      console.error('Error sending welcome email:', error);
+      // Don't throw error here as admin creation was successful
+      // Just log the error for monitoring
+    }
   }
 
   async updateAdminStatus(adminId, isActive, updaterId) {

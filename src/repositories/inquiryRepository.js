@@ -46,9 +46,10 @@ class InquiryRepository {
                 WHEN i.holidayHomeID IS NOT NULL THEN 'Holiday Home'
                 ELSE 'Unknown'
                 END as rentalName,
-                i.startDate,
                 i.status,
-                i.updatedDate
+                i.updatedDate,
+                i.remarks,
+                i.message
             ${baseQuery}
             ORDER BY i.updatedDate DESC
             LIMIT ? OFFSET ?

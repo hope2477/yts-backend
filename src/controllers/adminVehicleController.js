@@ -3,7 +3,7 @@ const vehicleService = require('../services/vehicleService');
 class AdminVehicleController {
   async getAllVehicles(req, res) {
     try {
-      const { page = 1, limit = 10, search, isFeatured } = req.query;
+      const { page = 1, limit = 10000, search, isFeatured } = req.query;
       
       const result = await vehicleService.getAllVehiclesForAdmin({
         page,
