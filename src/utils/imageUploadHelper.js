@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 
 class ImageUploadHelper {
   constructor() {
-    this.uploadDir = path.join(__dirname, '../../images/vehiclesAndProperties');
+    this.uploadDir = path.join(__dirname, '../../uploads/rentalImages');
     this.ensureUploadDirectory();
   }
 
@@ -42,7 +42,7 @@ class ImageUploadHelper {
       fs.writeFileSync(filePath, imageBuffer);
       
       // Return the URL path that matches your existing pattern
-      return `/images/vehiclesAndProperties/${filename}`;
+      return `/uploads/rentalImages/${filename}`;
       
     } catch (error) {
       console.error('Error saving base64 image:', error);
@@ -96,7 +96,7 @@ class ImageUploadHelper {
    */
   deleteImage(imageUrl) {
     try {
-      if (!imageUrl || !imageUrl.includes('/images/vehiclesAndProperties/')) {
+      if (!imageUrl || !imageUrl.includes('/uploads/rentalImages/')) {
         return false;
       }
       

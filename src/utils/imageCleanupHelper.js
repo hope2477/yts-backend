@@ -4,7 +4,7 @@ const db = require('../config/database');
 
 class ImageCleanupHelper {
   constructor() {
-    this.uploadDir = path.join(__dirname, '../../images/vehiclesAndProperties');
+    this.uploadDir = path.join(__dirname, '../../uploads/rentalImages');
   }
 
   /**
@@ -36,7 +36,7 @@ class ImageCleanupHelper {
       
       // Extract filenames from URLs
       const dbFilenames = dbImageUrls
-        .filter(url => url.includes('/images/vehiclesAndProperties/'))
+        .filter(url => url.includes('/uploads/rentalImages/'))
         .map(url => path.basename(url));
       
       // Get all files in upload directory
