@@ -53,6 +53,14 @@ class VehicleService {
           throw new Error('Invalid user identification');
         }
 
+        // Validate image URLs if provided
+        if (vehicleData.images && vehicleData.images.length > 0) {
+          vehicleData.images.forEach((imageUrl, index) => {
+            if (!imageUrl || typeof imageUrl !== 'string') {
+              throw new Error(`Invalid image URL at index ${index}`);
+            }
+          });
+        }
         return vehicleRepository.createVehicle(vehicleData);
     }
 

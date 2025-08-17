@@ -12,7 +12,12 @@ const PORT = process.env.PORT || 3000;
 const app = express();
 
 // Middleware
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '50mb' })); // Increase limit for base64 images
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+
+// Serve static files from images directory
+app.use('/images', express.static(path.join(__dirname, 'images')));
+
 app.use(cors({
   origin: ['https://ytsenterprise.com'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

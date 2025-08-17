@@ -1,5 +1,6 @@
 const express = require('express');
 const authMiddleware = require('../middleware/authMiddleware');
+const imageUploadMiddleware = require('../middleware/imageUploadMiddleware');
 
 // Controllers
 const adminVehicleController = require('../controllers/adminVehicleController');
@@ -7,6 +8,7 @@ const adminPropertyController = require('../controllers/adminPropertyController'
 const adminInquiryController = require('../controllers/adminInquiryController');
 const adminFeatureController = require('../controllers/adminFeatureController');
 const adminDashboardController = require('../controllers/adminDashboardController');
+const adminSystemController = require('../controllers/adminSystemController');
 
 const router = express.Router();
 
@@ -46,10 +48,12 @@ router.get('/vehicles/:id',
 );
 router.post('/vehicles', 
   authMiddleware.requirePermission('vehicle.create'), 
+  imageUploadMiddleware.validateImageUpload(),
   adminVehicleController.createVehicle
 );
 router.put('/vehicles/:id', 
   authMiddleware.requirePermission('vehicle.update'), 
+  imageUploadMiddleware.validateImageUpload(),
   adminVehicleController.updateVehicle
 );
 router.delete('/vehicles/:id', 
@@ -80,10 +84,12 @@ router.get('/properties/:id',
 );
 router.post('/properties', 
   authMiddleware.requirePermission('property.create'), 
+  imageUploadMiddleware.validateImageUpload(),
   adminPropertyController.createProperty
 );
 router.put('/properties/:id', 
   authMiddleware.requirePermission('property.update'), 
+  imageUploadMiddleware.validateImageUpload(),
   adminPropertyController.updateProperty
 );
 router.delete('/properties/:id', 
@@ -145,6 +151,16 @@ router.put('/features/:id',
 router.delete('/features/:id', 
   authMiddleware.requirePermission('feature.delete'), 
   adminFeatureController.deleteFeature
+);
+
+// System management routes
+router.post('/system/cleanup-images', 
+  authMiddleware.requirePermission('system.manage_settings'), 
+  adminSystemController.cleanupImages
+);
+router.get('/system/storage-stats', 
+  authMiddleware.requirePermission('system.view_dashboard'), 
+  adminSystemController.getStorageStats
 );
 
 module.exports = router;

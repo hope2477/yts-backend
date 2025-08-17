@@ -1,4 +1,5 @@
 const vehicleService = require('../services/vehicleService');
+const imageUploadHelper = require('../utils/imageUploadHelper');
 
 class AdminVehicleController {
   async getAllVehicles(req, res) {
@@ -51,16 +52,27 @@ class AdminVehicleController {
 
   async createVehicle(req, res) {
     try {
-      // Extract main image from the first image in the array (if provided)
-      const mainImage = req.body.images && req.body.images.length > 0 
-        ? req.body.images[0] 
-        : '';
+      // Process base64 images if provided
+      let processedImages = { mainImage: '', allImages: [] };
+      
+      if (req.body.base64Images && Array.isArray(req.body.base64Images) && req.body.base64Images.length > 0) {
+        const identifier = req.body.NumberPlate || req.body.make + req.body.model;
+        processedImages = await imageUploadHelper.processImagesForCreation(
+          req.body.base64Images, 
+          'vehicle', 
+          identifier
+        );
+      }
       
       const vehicleData = {
         ...req.body,
-        image: mainImage, // Set the main image
+        image: processedImages.mainImage, // Set the main image
+        images: processedImages.allImages, // Set all images for database storage
         createdBy: req.user.id // Get from authenticated user
       };
+
+      // Remove base64Images from vehicleData to avoid sending to database
+      delete vehicleData.base64Images;
 
       // Validate features array if provided
       if (vehicleData.features && !Array.isArray(vehicleData.features)) {
@@ -103,15 +115,42 @@ class AdminVehicleController {
   async updateVehicle(req, res) {
     try {
       const { id } = req.params;
+      
+      // Get existing vehicle data to access current images
+      const existingVehicle = await vehicleService.getVehicleByIdForAdmin(id);
+      if (!existingVehicle) {
+        return res.status(404).json({
+          success: false,
+          error: 'Vehicle not found'
+        });
+      }
+      
+      // Process base64 images if provided
+      let processedImages = { mainImage: '', allImages: [] };
+      
+      if (req.body.base64Images && Array.isArray(req.body.base64Images) && req.body.base64Images.length > 0) {
+        const identifier = req.body.NumberPlate || existingVehicle.NumberPlate || existingVehicle.make + existingVehicle.model;
+        processedImages = await imageUploadHelper.processImagesForUpdate(
+          req.body.base64Images,
+          existingVehicle.images || [],
+          'vehicle',
+          identifier
+        );
+      } else {
+        // Keep existing images if no new images provided
+        processedImages.mainImage = existingVehicle.image || '';
+        processedImages.allImages = existingVehicle.images || [];
+      }
+      
       const updateData = {
         ...req.body,
+        image: processedImages.mainImage,
+        images: processedImages.allImages,
         updatedBy: req.user.id // Get from authenticated user
       };
 
-      // Set main image from first image in array if images are provided
-      if (updateData.images && updateData.images.length > 0) {
-        updateData.image = updateData.images[0];
-      }
+      // Remove base64Images from updateData to avoid sending to database
+      delete updateData.base64Images;
 
       // Validate features array if provided
       if (updateData.features && !Array.isArray(updateData.features)) {
