@@ -67,10 +67,10 @@ class AdminPropertyController {
       // Process base64 images if provided
       let processedImages = { mainImage: '', allImages: [] };
       
-      if (req.body.base64Images && Array.isArray(req.body.base64Images) && req.body.base64Images.length > 0) {
+      if (req.body.images && Array.isArray(req.body.images) && req.body.images.length > 0) {
         const identifier = req.body.name || 'property';
         processedImages = await imageUploadHelper.processImagesForCreation(
-          req.body.base64Images, 
+          req.body.images, 
           'property', 
           identifier
         );
@@ -127,87 +127,64 @@ class AdminPropertyController {
   async updateProperty(req, res) {
     try {
       const { id } = req.params;
-      
-      // Get existing property data to access current images
+
+      // Get existing property data
       const existingProperty = await propertyService.getPropertyByIdForAdmin(id);
       if (!existingProperty) {
-        return res.status(404).json({
-          success: false,
-          error: 'Property not found'
-        });
+        return res.status(404).json({ success: false, error: 'Property not found' });
       }
-      
-      // Process base64 images if provided
+
+      // Process images (mixed existing + base64)
       let processedImages = { mainImage: '', allImages: [] };
-      
-      if (req.body.base64Images && Array.isArray(req.body.base64Images) && req.body.base64Images.length > 0) {
+
+      if (req.body.images && Array.isArray(req.body.images)) {
         const identifier = req.body.name || existingProperty.name || 'property';
+        const existingFilenames = (existingProperty.images || []).map(img =>
+          imageUploadHelper.getFilenameFromUrl(img)
+        );
+
         processedImages = await imageUploadHelper.processImagesForUpdate(
-          req.body.base64Images,
-          existingProperty.images || [],
+          req.body.images,
+          existingFilenames,
           'property',
           identifier
         );
       } else {
         // Keep existing images if no new images provided
-        processedImages.mainImage = existingProperty.image || '';
-        processedImages.allImages = existingProperty.images || [];
+        processedImages.mainImage = imageUploadHelper.getFilenameFromUrl(existingProperty.image || '');
+        processedImages.allImages = (existingProperty.images || []).map(img =>
+          imageUploadHelper.getFilenameFromUrl(img)
+        );
       }
-      
+
       const updateData = {
         ...req.body,
-        image: processedImages.mainImage,
+        image: processedImages.allImages[0] || existingProperty.image, // First image is main
         images: processedImages.allImages,
         updatedBy: req.user.id
       };
 
-      // Remove base64Images from updateData to avoid sending to database
-      delete updateData.base64Images;
-
-      // Validate features array if provided
+      // Validate arrays
       if (updateData.features && !Array.isArray(updateData.features)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Features must be an array of feature IDs'
-        });
+        return res.status(400).json({ success: false, error: 'Features must be an array of IDs' });
       }
-
-      // Validate images array if provided
-      if (updateData.images && !Array.isArray(updateData.images)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Images must be an array of image URLs'
-        });
-      }
-
-      // Validate availability array if provided
       if (updateData.availability && !Array.isArray(updateData.availability)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Availability must be an array of date ranges'
-        });
+        return res.status(400).json({ success: false, error: 'Availability must be an array' });
       }
 
       const success = await propertyService.updateProperty(id, updateData);
-      
+
       if (!success) {
-        return res.status(404).json({
-          success: false,
-          error: 'Property not found'
-        });
+        return res.status(404).json({ success: false, error: 'Property not found' });
       }
 
-      res.json({
-        success: true,
-        message: 'Property updated successfully'
-      });
+      res.json({ success: true, message: 'Property updated successfully' });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      console.error('Update Property Error:', error);
+      res.status(400).json({ success: false, error: error.message });
     }
   }
+
 
   async deleteProperty(req, res) {
     try {

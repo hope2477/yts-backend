@@ -1,11 +1,14 @@
 const fs = require('fs');
 const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+require('dotenv').config()
 
 class ImageUploadHelper {
   constructor() {
     this.uploadDir = path.join(__dirname, '../../uploads/rentalImages');
     this.ensureUploadDirectory();
+
+    // Read frontend base URL from .env
+    this.frontendUrl = process.env.FRONTEND_URL || '';
   }
 
   ensureUploadDirectory() {
@@ -16,33 +19,28 @@ class ImageUploadHelper {
   }
 
   /**
-   * Save base64 image to file system
+   * Save base64 image to file system with specific naming convention
    * @param {string} base64Data - Base64 encoded image data
-   * @param {string} prefix - Prefix for filename (e.g., 'vehicle', 'property')
-   * @param {string} originalName - Original filename (optional)
-   * @returns {Promise<string>} - Returns the relative URL path
+   * @param {string} filename - Specific filename to use
+   * @returns {Promise<string>} - Returns the filename only
    */
-  async saveBase64Image(base64Data, prefix = 'image', originalName = null) {
+  async saveBase64Image(base64Data, filename) {
     try {
       // Remove data URL prefix if present (data:image/jpeg;base64,)
       const base64String = base64Data.replace(/^data:image\/[a-z]+;base64,/, '');
       
-      // Generate unique filename
-      const timestamp = Date.now();
-      const uniqueId = uuidv4().substring(0, 8);
+      // Get extension from base64 data
       const extension = this.getImageExtension(base64Data);
-      const filename = originalName 
-        ? `${prefix}-${timestamp}-${originalName}`
-        : `${prefix}-${timestamp}-${uniqueId}.${extension}`;
+      const fullFilename = `${filename}.${extension}`;
       
-      const filePath = path.join(this.uploadDir, filename);
+      const filePath = path.join(this.uploadDir, fullFilename);
       
       // Convert base64 to buffer and save
       const imageBuffer = Buffer.from(base64String, 'base64');
       fs.writeFileSync(filePath, imageBuffer);
       
-      // Return the URL path that matches your existing pattern
-      return `/uploads/rentalImages/${filename}`;
+      // Return only the filename (not the full path)
+      return fullFilename;
       
     } catch (error) {
       console.error('Error saving base64 image:', error);
@@ -51,21 +49,26 @@ class ImageUploadHelper {
   }
 
   /**
-   * Save multiple base64 images
+   * Save multiple base64 images with proper naming convention
    * @param {Array} base64Images - Array of base64 image strings
-   * @param {string} prefix - Prefix for filenames
-   * @returns {Promise<Array>} - Returns array of URL paths
+   * @param {string} identifier - Vehicle number plate or property name
+   * @param {string} type - 'vehicle' or 'property'
+   * @returns {Promise<Array>} - Returns array of filenames only
    */
-  async saveMultipleBase64Images(base64Images, prefix) {
+  async saveMultipleBase64Images(base64Images, identifier, type) {
     if (!Array.isArray(base64Images) || base64Images.length === 0) {
       return [];
     }
 
+    // Clean identifier (remove spaces and special characters)
+    const cleanIdentifier = identifier.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+    
     const savedImages = [];
     
     for (let i = 0; i < base64Images.length; i++) {
-      const imageUrl = await this.saveBase64Image(base64Images[i], `${prefix}-${i + 1}`);
-      savedImages.push(imageUrl);
+      const filename = `${cleanIdentifier}-${i + 1}`;
+      const savedFilename = await this.saveBase64Image(base64Images[i], filename);
+      savedImages.push(savedFilename);
     }
     
     return savedImages;
@@ -90,17 +93,16 @@ class ImageUploadHelper {
   }
 
   /**
-   * Delete image file from filesystem
-   * @param {string} imageUrl - Image URL to delete
+   * Delete image file from filesystem using filename
+   * @param {string} filename - Image filename to delete
    * @returns {boolean} - Success status
    */
-  deleteImage(imageUrl) {
+  deleteImage(filename) {
     try {
-      if (!imageUrl || !imageUrl.includes('/uploads/rentalImages/')) {
+      if (!filename) {
         return false;
       }
       
-      const filename = path.basename(imageUrl);
       const filePath = path.join(this.uploadDir, filename);
       
       if (fs.existsSync(filePath)) {
@@ -118,15 +120,15 @@ class ImageUploadHelper {
 
   /**
    * Delete multiple images
-   * @param {Array} imageUrls - Array of image URLs to delete
+   * @param {Array} filenames - Array of image filenames to delete
    * @returns {number} - Number of successfully deleted images
    */
-  deleteMultipleImages(imageUrls) {
-    if (!Array.isArray(imageUrls)) return 0;
+  deleteMultipleImages(filenames) {
+    if (!Array.isArray(filenames)) return 0;
     
     let deletedCount = 0;
-    imageUrls.forEach(url => {
-      if (this.deleteImage(url)) {
+    filenames.forEach(filename => {
+      if (this.deleteImage(filename)) {
         deletedCount++;
       }
     });
@@ -141,61 +143,133 @@ class ImageUploadHelper {
    * @param {string} identifier - Vehicle plate number or property name for filename
    * @returns {Promise<Object>} - Returns {mainImage, allImages}
    */
-  async processImagesForCreation(base64Images, type, identifier = '') {
+  async processImagesForCreation(base64Images, type, identifier) {
     if (!base64Images || !Array.isArray(base64Images) || base64Images.length === 0) {
       return { mainImage: '', allImages: [] };
     }
 
-    const sanitizedIdentifier = identifier.replace(/[^a-zA-Z0-9]/g, '');
-    const prefix = `${type}-${sanitizedIdentifier}`;
-    
-    const savedImages = await this.saveMultipleBase64Images(base64Images, prefix);
+    const savedImages = await this.saveMultipleBase64Images(base64Images, identifier, type);
     
     return {
       mainImage: savedImages[0] || '',
-      allImages: savedImages
+      allImages: savedImages // All images including the first one
     };
   }
 
   /**
    * Process images for vehicle/property updates
-   * @param {Array} base64Images - New base64 images from frontend
-   * @param {Array} existingImages - Current image URLs in database
+   * This handles mixed arrays of existing URLs and new base64 images
+   * @param {Array} imageData - Mixed array of existing filenames and new base64 images
+   * @param {Array} existingImages - Current image filenames in database
    * @param {string} type - 'vehicle' or 'property'
    * @param {string} identifier - Vehicle plate number or property name
    * @returns {Promise<Object>} - Returns {mainImage, allImages, deletedImages}
    */
-  async processImagesForUpdate(base64Images, existingImages, type, identifier = '') {
+  async processImagesForUpdate(imageData, existingImages, type, identifier) {
     const result = {
       mainImage: '',
       allImages: [],
       deletedImages: []
     };
 
-    // If no new images provided, keep existing
-    if (!base64Images || !Array.isArray(base64Images) || base64Images.length === 0) {
+    if (!imageData || !Array.isArray(imageData) || imageData.length === 0) {
       result.mainImage = existingImages[0] || '';
-      result.allImages = existingImages || [];
+      result.allImages = [...existingImages];
       return result;
     }
 
-    // Delete existing images
-    if (existingImages && existingImages.length > 0) {
-      const deletedCount = this.deleteMultipleImages(existingImages);
-      result.deletedImages = existingImages;
-      console.log(`Deleted ${deletedCount} existing images`);
+    const existingFilenames = [];
+    const newBase64Images = [];
+
+    imageData.forEach(item => {
+      if (typeof item === 'string') {
+        if (item.startsWith('data:image/')) {
+          newBase64Images.push(item);
+        } else {
+          existingFilenames.push(item);
+        }
+      }
+    });
+
+    // Remove duplicates from existing filenames
+    const uniqueExisting = [...new Set(existingFilenames)];
+
+    // Find images to delete (existing DB images not in updated list)
+    const imagesToDelete = existingImages.filter(img => !uniqueExisting.includes(img));
+    if (imagesToDelete.length > 0) {
+      const deletedCount = this.deleteMultipleImages(imagesToDelete);
+      result.deletedImages = imagesToDelete;
+      console.log(`Deleted ${deletedCount} images during update`);
     }
 
-    // Save new images
-    const sanitizedIdentifier = identifier.replace(/[^a-zA-Z0-9]/g, '');
-    const prefix = `${type}-${sanitizedIdentifier}`;
-    
-    const savedImages = await this.saveMultipleBase64Images(base64Images, prefix);
-    
-    result.mainImage = savedImages[0] || '';
-    result.allImages = savedImages;
-    
+    // Find max numeric suffix for new images
+    let maxSuffix = 0;
+    existingImages.forEach(img => {
+      const match = img.match(/-(\d+)\./);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxSuffix) maxSuffix = num;
+      }
+    });
+
+    // Save new base64 images with incremental suffix
+    const cleanIdentifier = identifier.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+    const newSavedImages = [];
+    for (let i = 0; i < newBase64Images.length; i++) {
+      // Correct way
+      const filename = `${cleanIdentifier}-${maxSuffix + i + 1}`; // no .jpg here
+      const savedFilename = await this.saveBase64Image(newBase64Images[i], filename);
+      newSavedImages.push(savedFilename);
+    }
+
+    // Combine unique existing and new images
+    const allImages = [...uniqueExisting, ...newSavedImages];
+
+    result.mainImage = allImages[0] || '';
+    result.allImages = allImages;
+
     return result;
+  }
+
+
+  /**
+   * Convert filename to full URL for frontend
+   * @param {string} filename - Image filename
+   * @returns {string} - Full URL
+   */
+  getImageUrl(filename) {
+    if (!filename) return '';
+    return `${this.frontendUrl}/uploads/rentalImages/${filename}`;
+  }
+
+  /**
+   * Convert array of filenames to full URLs for frontend
+   * @param {Array} filenames - Array of image filenames
+   * @returns {Array} - Array of full URLs
+   */
+  getImageUrls(filenames) {
+    if (!Array.isArray(filenames)) return [];
+    return filenames.map(filename => `${this.frontendUrl}/uploads/rentalImages/${filename}`);
+  }
+
+  /**
+   * Extract filename from URL
+   * @param {string} url - Image URL
+   * @returns {string} - Filename only
+   */
+  getFilenameFromUrl(url) {
+    if (!url) return '';
+    return path.basename(url);
+  }
+
+  /**
+   * Extract filenames from URLs
+   * @param {Array} urls - Array of image URLs
+   * @returns {Array} - Array of filenames
+   */
+  getFilenamesFromUrls(urls) {
+    if (!Array.isArray(urls)) return [];
+    return urls.map(url => this.getFilenameFromUrl(url));
   }
 }
 

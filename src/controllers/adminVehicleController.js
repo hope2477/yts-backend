@@ -55,10 +55,10 @@ class AdminVehicleController {
       // Process base64 images if provided
       let processedImages = { mainImage: '', allImages: [] };
       
-      if (req.body.base64Images && Array.isArray(req.body.base64Images) && req.body.base64Images.length > 0) {
-        const identifier = req.body.NumberPlate || req.body.make + req.body.model;
+      if (req.body.images && Array.isArray(req.body.images) && req.body.images.length > 0) {
+        const identifier = req.body.NumberPlate || `${req.body.make}${req.body.model}`;
         processedImages = await imageUploadHelper.processImagesForCreation(
-          req.body.base64Images, 
+          req.body.images, 
           'vehicle', 
           identifier
         );
@@ -115,87 +115,69 @@ class AdminVehicleController {
   async updateVehicle(req, res) {
     try {
       const { id } = req.params;
-      
+
       // Get existing vehicle data to access current images
       const existingVehicle = await vehicleService.getVehicleByIdForAdmin(id);
       if (!existingVehicle) {
-        return res.status(404).json({
-          success: false,
-          error: 'Vehicle not found'
-        });
+        return res.status(404).json({ success: false, error: 'Vehicle not found' });
       }
-      
-      // Process base64 images if provided
+
+      // Process images (mixed base64 and existing filenames)
       let processedImages = { mainImage: '', allImages: [] };
-      
-      if (req.body.base64Images && Array.isArray(req.body.base64Images) && req.body.base64Images.length > 0) {
-        const identifier = req.body.NumberPlate || existingVehicle.NumberPlate || existingVehicle.make + existingVehicle.model;
+
+      if (req.body.images && Array.isArray(req.body.images)) {
+        const identifier =
+          req.body.NumberPlate ||
+          existingVehicle.NumberPlate ||
+          `${existingVehicle.make}${existingVehicle.model}`;
+
+        const existingFilenames = (existingVehicle.images || []).map(img =>
+          imageUploadHelper.getFilenameFromUrl(img)
+        );
+
         processedImages = await imageUploadHelper.processImagesForUpdate(
-          req.body.base64Images,
-          existingVehicle.images || [],
+          req.body.images,
+          existingFilenames,
           'vehicle',
           identifier
         );
       } else {
-        // Keep existing images if no new images provided
-        processedImages.mainImage = existingVehicle.image || '';
-        processedImages.allImages = existingVehicle.images || [];
+        // Keep existing images if no images provided
+        processedImages.mainImage = imageUploadHelper.getFilenameFromUrl(existingVehicle.image || '');
+        processedImages.allImages = (existingVehicle.images || []).map(img =>
+          imageUploadHelper.getFilenameFromUrl(img)
+        );
       }
-      
+
+      // Prepare updateData
       const updateData = {
         ...req.body,
-        image: processedImages.mainImage,
+        image: processedImages.allImages[0] || existingVehicle.image, // Main image
         images: processedImages.allImages,
-        updatedBy: req.user.id // Get from authenticated user
+        updatedBy: req.user.id
       };
 
-      // Remove base64Images from updateData to avoid sending to database
-      delete updateData.base64Images;
-
-      // Validate features array if provided
+      // Validate features and availability
       if (updateData.features && !Array.isArray(updateData.features)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Features must be an array of feature IDs'
-        });
+        return res.status(400).json({ success: false, error: 'Features must be an array of feature IDs' });
       }
-
-      // Validate images array if provided
-      if (updateData.images && !Array.isArray(updateData.images)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Images must be an array of image URLs'
-        });
-      }
-
-      // Validate availability array if provided
       if (updateData.availability && !Array.isArray(updateData.availability)) {
-        return res.status(400).json({
-          success: false,
-          error: 'Availability must be an array of date ranges'
-        });
+        return res.status(400).json({ success: false, error: 'Availability must be an array of date ranges' });
       }
 
       const success = await vehicleService.updateVehicle(id, updateData);
-      
+
       if (!success) {
-        return res.status(404).json({
-          success: false,
-          error: 'Vehicle not found'
-        });
+        return res.status(404).json({ success: false, error: 'Vehicle not found' });
       }
 
-      res.json({
-        success: true,
-        message: 'Vehicle updated successfully'
-      });
+      res.json({ success: true, message: 'Vehicle updated successfully' });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error.message
-      });
+      console.error('Update Vehicle Error:', error);
+      res.status(400).json({ success: false, error: error.message });
     }
   }
+
 
   async deleteVehicle(req, res) {
     try {

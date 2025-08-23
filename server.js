@@ -16,7 +16,7 @@ app.use(bodyParser.json({ limit: '50mb' })); // Increase limit for base64 images
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
 // Serve static files from images directory
-app.use('/images', express.static(path.join(__dirname, 'images')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use(cors({
   origin: ['https://ytsenterprise.com'],

@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const imageUploadHelper = require('../utils/imageUploadHelper');
 
 class VehicleRepository {
   // Admin-specific methods for vehicle management
@@ -59,7 +60,8 @@ class VehicleRepository {
       return {
         data: rows.map(row => ({
           ...row,
-          isFeatured: Boolean(row.isFeatured)
+          isFeatured: Boolean(row.isFeatured),
+          image: imageUploadHelper.getImageUrl(row.image) 
         })),
         pagination: {
           page,
@@ -134,7 +136,8 @@ class VehicleRepository {
         isActive: Boolean(vehicle.isActive),
         isFeatured: Boolean(vehicle.isFeatured),
         features: featureRows,
-        images: imageRows.map(row => row.image),
+        image: imageUploadHelper.getImageUrl(vehicle.image), // Convert to full URL
+        images: imageUploadHelper.getImageUrls(imageRows.map(row => row.image)), // Convert to full URLs
         availability: availabilityRows
       };
     } catch (error) {
@@ -188,10 +191,9 @@ class VehicleRepository {
         `, [featureValues]);
       }
       
-      // Insert additional images if provided (skip first one as it's the main image)
-      if (vehicleData.images && vehicleData.images.length > 1) {
-        const additionalImages = vehicleData.images.slice(1);
-        const imageValues = additionalImages.map(image => [vehicleId, image]);
+      // Insert all images (including the main image)
+      if (vehicleData.images && vehicleData.images.length > 0) {
+        const imageValues = vehicleData.images.map(image => [vehicleId, image]);
         await connection.query(`
           INSERT INTO vehicleImages (vehicleID, image) VALUES ?
         `, [imageValues]);
@@ -227,112 +229,99 @@ class VehicleRepository {
     const connection = await db.getConnection();
     try {
       await connection.beginTransaction();
-      
-      // Validate features exist if provided
-      if (updateData.features !== undefined && updateData.features.length > 0) {
+
+      // Validate features exist
+      if (updateData.features && updateData.features.length > 0) {
         const [existingFeatures] = await connection.query(
-          'SELECT id FROM feature WHERE id IN (?)', 
+          'SELECT id FROM feature WHERE id IN (?)',
           [updateData.features]
         );
-        
         const existingFeatureIds = existingFeatures.map(f => f.id);
-        const invalidFeatures = updateData.features.filter(
-          f => !existingFeatureIds.includes(f)
-        );
-        
+        const invalidFeatures = updateData.features.filter(f => !existingFeatureIds.includes(f));
         if (invalidFeatures.length > 0) {
           throw new Error(`Invalid feature IDs: ${invalidFeatures.join(', ')}`);
         }
       }
 
-      // Update vehicle - ensure image is never null
-      const [result] = await connection.query(`
-        UPDATE vehicle 
-        SET make = ?, model = ?, year = ?, fuelType = ?, transmission = ?, 
-            numOfPassengers = ?, vehicleClass = ?, description = ?, color = ?, 
-            bodyStyle = ?, dailyCharge = ?, weeklyCharge = ?, monthlyCharge = ?, 
-            NumberPlate = ?, image = COALESCE(?, image), isFeatured = ?, isActive = ?, 
-            updatedBy = ?, updatedDate = NOW()
-        WHERE id = ?
-      `, [
-        updateData.make,
-        updateData.model,
-        updateData.year,
-        updateData.fuelType,
-        updateData.transmission,
-        updateData.numOfPassengers,
-        updateData.vehicleClass,
-        updateData.description,
-        updateData.color,
-        updateData.bodyStyle,
-        updateData.dailyCharge,
-        updateData.weeklyCharge,
-        updateData.monthlyCharge,
-        updateData.NumberPlate,
-        updateData.image, // Will use existing image if null
-        updateData.isFeatured,
-        updateData.isActive,
-        updateData.updatedBy,
-        id
-      ]);
-      
-      // Update features if provided (replaces all existing)
+      // Update main vehicle info
+      const [result] = await connection.query(
+        `UPDATE vehicle 
+        SET make=?, model=?, year=?, fuelType=?, transmission=?, 
+            numOfPassengers=?, vehicleClass=?, description=?, color=?, 
+            bodyStyle=?, dailyCharge=?, weeklyCharge=?, monthlyCharge=?, 
+            NumberPlate=?, image=?, isFeatured=?, isActive=?, 
+            updatedBy=?, updatedDate=NOW()
+        WHERE id=?`,
+        [
+          updateData.make,
+          updateData.model,
+          updateData.year,
+          updateData.fuelType,
+          updateData.transmission,
+          updateData.numOfPassengers,
+          updateData.vehicleClass,
+          updateData.description,
+          updateData.color,
+          updateData.bodyStyle,
+          updateData.dailyCharge,
+          updateData.weeklyCharge,
+          updateData.monthlyCharge,
+          updateData.NumberPlate,
+          updateData.image, // Always use processed first image
+          updateData.isFeatured,
+          updateData.isActive,
+          updateData.updatedBy,
+          id
+        ]
+      );
+
+      // Update features
       if (updateData.features !== undefined) {
-        await connection.query('DELETE FROM vehicleFeature WHERE vehicleId = ?', [id]);
-        
+        await connection.query('DELETE FROM vehicleFeature WHERE vehicleId=?', [id]);
         if (updateData.features.length > 0) {
-          const featureValues = updateData.features.map(featureId => [id, featureId]);
-          await connection.query(`
-            INSERT INTO vehicleFeature (vehicleId, featureId) VALUES ?
-          `, [featureValues]);
+          const featureValues = updateData.features.map(fId => [id, fId]);
+          await connection.query('INSERT INTO vehicleFeature (vehicleId, featureId) VALUES ?', [featureValues]);
         }
       }
-      
-      // Update images if provided (replaces all existing)
+
+      // Update images
       if (updateData.images !== undefined) {
-        await connection.query('DELETE FROM vehicleImages WHERE vehicleID = ?', [id]);
-        
+        await connection.query('DELETE FROM vehicleImages WHERE vehicleID=?', [id]);
         if (updateData.images.length > 0) {
-          const imageValues = updateData.images.map(image => [id, image]);
-          await connection.query(`
-            INSERT INTO vehicleImages (vehicleID, image) VALUES ?
-          `, [imageValues]);
+          const imageValues = updateData.images.map(img => [id, img]);
+          await connection.query('INSERT INTO vehicleImages (vehicleID, image) VALUES ?', [imageValues]);
         }
       }
-      
-      // Update availability if provided (replaces all existing)
+
+      // Update availability
       if (updateData.availability !== undefined) {
-        await connection.query('DELETE FROM vehicleAvailability WHERE vehicleId = ?', [id]);
-        
+        await connection.query('DELETE FROM vehicleAvailability WHERE vehicleId=?', [id]);
         if (updateData.availability.length > 0) {
           const availabilityValues = updateData.availability.map(avail => [
-            id, 
-            avail.startDate, 
-            avail.endDate, 
-            updateData.updatedBy, 
+            id,
+            avail.startDate,
+            avail.endDate,
+            updateData.updatedBy,
             new Date()
           ]);
-          await connection.query(`
-            INSERT INTO vehicleAvailability (vehicleId, startDate, endDate, createdBy, createdDate) 
-            VALUES ?
-          `, [availabilityValues]);
+          await connection.query(
+            'INSERT INTO vehicleAvailability (vehicleId, startDate, endDate, createdBy, createdDate) VALUES ?',
+            [availabilityValues]
+          );
         }
       }
-      
+
       await connection.commit();
       return result.affectedRows > 0;
     } catch (error) {
       await connection.rollback();
-      console.error('Error updating vehicle:', {
-        message: error.message,
-        sqlMessage: error.sqlMessage,
-        stack: error.stack
-      });
+      console.error('Error updating vehicle:', error);
       throw new Error('Unable to update vehicle: ' + error.message);
     } finally {
       connection.release();
     }
   }
+
 
   async deleteVehicle(id, userId) {
     try {
@@ -538,6 +527,9 @@ class VehicleRepository {
         featureName: feature.featureName,
       }));
 
+      // Convert filenames to full URLs for frontend
+      const imageUploadHelper = require('../utils/imageUploadHelper');
+      // const images = imageResult.map(image => imageUploadHelper.getImageUrl(image.image));
       const images = imageResult.map(image => image.image);
 
       // Transform the vehicle data to convert isActive and isFeatured to boolean
@@ -545,8 +537,9 @@ class VehicleRepository {
         ...vehicle,
         isActive: Boolean(vehicle.isActive),
         isFeatured: Boolean(vehicle.isFeatured),
+        image: imageUploadHelper.getImageUrl(vehicle.image), // Convert to full URL
         features,
-        images, // Add the images array
+        images, // Add the images array with full URLs
       };
 
       return { data: result };

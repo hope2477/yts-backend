@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const imageUploadHelper = require('../utils/imageUploadHelper')
 
 class PropertyRepository {
     // Admin-specific methods for property management
@@ -79,7 +80,7 @@ class PropertyRepository {
                     numOfVehicleParking: row.numOfVehicleParking,
                     isFeatured: Boolean(row.isFeatured),
                     status: row.status,
-                    image: row.image
+                    image: imageUploadHelper.getImageUrl(row.image)
                 })),
                 pagination: {
                     page,
@@ -137,7 +138,8 @@ class PropertyRepository {
                 isActive: Boolean(property.isActive),
                 isFeatured: Boolean(property.isFeatured),
                 features: featureRows,
-                images: imageRows.map(row => row.image),
+                image: imageUploadHelper.getImageUrl(property.image), // Add this line
+                images: imageRows.map(row => imageUploadHelper.getImageUrl(row.image)), // Add this
                 availability: availabilityRows
             };
         } catch (error) {
@@ -224,92 +226,85 @@ class PropertyRepository {
         const connection = await db.getConnection();
         try {
             await connection.beginTransaction();
-            
-            // Update property
-            const [result] = await connection.query(`
-                UPDATE property 
-                SET name = ?, address = ?, propertyType = ?, propertyClass = ?,
-                    numOfBedrooms = ?, numOfBathrooms = ?, numOfVehicleParking = ?,
-                    description = ?, furnishDetails = ?, floor = ?, dailyCharge = ?,
-                    weeklyCharge = ?, monthlyCharge = ?, image = ?, isFeatured = ?,
-                    isActive = ?, updatedBy = ?, updatedDate = NOW()
-                WHERE id = ?
-            `, [
+
+            // Update main property info
+            const [result] = await connection.query(
+            `UPDATE property
+            SET name=?, address=?, propertyType=?, propertyClass=?,
+                numOfBedrooms=?, numOfBathrooms=?, numOfVehicleParking=?,
+                description=?, furnishDetails=?, floor=?, dailyCharge=?,
+                weeklyCharge=?, monthlyCharge=?, image=?, isFeatured=?,
+                isActive=?, updatedBy=?, updatedDate=NOW()
+            WHERE id=?`,
+            [
                 updateData.name,
                 updateData.address,
                 updateData.propertyType,
                 updateData.propertyClass,
                 updateData.numOfBedrooms,
                 updateData.numOfBathrooms,
-                updateData.numOfVehicleParking,
-                updateData.description,
-                updateData.furnishDetails,
-                updateData.floor,
-                updateData.dailyCharge,
-                updateData.weeklyCharge,
-                updateData.monthlyCharge,
-                updateData.image,
-                updateData.isFeatured,
-                updateData.isActive,
+                updateData.numOfVehicleParking || 0,
+                updateData.description || '',
+                updateData.furnishDetails || '',
+                updateData.floor || null,
+                updateData.dailyCharge || null,
+                updateData.weeklyCharge || null,
+                updateData.monthlyCharge || null,
+                updateData.image, // always first processed image
+                updateData.isFeatured || false,
+                updateData.isActive !== undefined ? updateData.isActive : true,
                 updateData.updatedBy,
                 id
-            ]);
-            
-            // Update features if provided
+            ]
+            );
+
+            // Update features
             if (updateData.features !== undefined) {
-                // Delete existing features
-                await connection.query('DELETE FROM propertyfeatures WHERE propertyID = ?', [id]);
-                
-                // Insert new features
-                if (updateData.features.length > 0) {
-                    const featureValues = updateData.features.map(featureId => [id, featureId]);
-                    await connection.query(`
-                        INSERT INTO propertyfeatures (propertyID, featureID) VALUES ?
-                    `, [featureValues]);
-                }
+            await connection.query('DELETE FROM propertyfeatures WHERE propertyID=?', [id]);
+            if (updateData.features.length > 0) {
+                const featureValues = updateData.features.map(fId => [id, fId]);
+                await connection.query('INSERT INTO propertyfeatures (propertyID, featureID) VALUES ?', [featureValues]);
             }
-            
-            // Update images if provided
+            }
+
+            // Update images
             if (updateData.images !== undefined) {
-                // Delete existing images
-                await connection.query('DELETE FROM propertyImages WHERE propertyID = ?', [id]);
-                
-                // Insert new images
-                if (updateData.images.length > 0) {
-                    const imageValues = updateData.images.map(image => [id, image]);
-                    await connection.query(`
-                        INSERT INTO propertyImages (propertyID, image) VALUES ?
-                    `, [imageValues]);
-                }
+            await connection.query('DELETE FROM propertyImages WHERE propertyID=?', [id]);
+            if (updateData.images.length > 0) {
+                const imageValues = updateData.images.map(img => [id, img]);
+                await connection.query('INSERT INTO propertyImages (propertyID, image) VALUES ?', [imageValues]);
             }
-            
-            // Update availability if provided
+            }
+
+            // Update availability
             if (updateData.availability !== undefined) {
-                // Delete existing availability
-                await connection.query('DELETE FROM propertyAvailability WHERE propertyID = ?', [id]);
-                
-                // Insert new availability
-                if (updateData.availability.length > 0) {
-                    const availabilityValues = updateData.availability.map(avail => [
-                        id, avail.startDate, avail.endDate, updateData.updatedBy, new Date()
-                    ]);
-                    await connection.query(`
-                        INSERT INTO propertyAvailability (propertyID, startDate, endDate, createdBy, createdDate) 
-                        VALUES ?
-                    `, [availabilityValues]);
-                }
+            await connection.query('DELETE FROM propertyAvailability WHERE propertyID=?', [id]);
+            if (updateData.availability.length > 0) {
+                const availabilityValues = updateData.availability.map(avail => [
+                id,
+                avail.startDate,
+                avail.endDate,
+                updateData.updatedBy,
+                new Date()
+                ]);
+                await connection.query(
+                `INSERT INTO propertyAvailability (propertyID, startDate, endDate, createdBy, createdDate) VALUES ?`,
+                [availabilityValues]
+                );
             }
-            
+            }
+
             await connection.commit();
             return result.affectedRows > 0;
         } catch (error) {
             await connection.rollback();
-            console.error('Error updating property:', error.message);
-            throw new Error('Unable to update property');
+            console.error('Error updating property:', error);
+            throw new Error('Unable to update property: ' + error.message);
         } finally {
             connection.release();
         }
-    }
+        }
+
 
     async deleteProperty(id, userId) {
         try {
@@ -516,13 +511,13 @@ class PropertyRepository {
       }));
 
       // Transform the images to an array of strings
-      const images = imageResult.map(image => image.image);
+      const images = imageUploadHelper.getImageUrls(imageResult.map(img => img.image));
 
-      // Transform the property data to convert isActive and isFeatured to boolean
       const result = {
         ...property,
         isActive: property.isActive === 1,  // Explicitly check for 1
         isFeatured: property.isFeatured === 1,  // Explicitly check for 1
+        image: imageUploadHelper.getImageUrl(property.image), // Convert to full URL
         features,
         images,
       };
@@ -570,7 +565,7 @@ class PropertyRepository {
           message: 'Property not found' 
         };
       }
-
+      // Insert all images (including the main image, store filenames only)
       // Skip update if already in desired state
       if (property[0].isActive === isActive) {
         return { 
@@ -590,7 +585,8 @@ class PropertyRepository {
       const [updatedProperty] = await db.query('SELECT * FROM property WHERE id = ?', [id]);
       
       return { 
-        success: true,
+        image: imageUploadHelper.getImageUrl(property.image), // Convert to full URL
+        images: imageUploadHelper.getImageUrls(imageRows.map(row => row.image)), // Convert to full URLs
         property: updatedProperty[0]
       };
     } catch (error) {
@@ -599,5 +595,4 @@ class PropertyRepository {
     }
   }
 }
-
 module.exports = new PropertyRepository();
