@@ -80,7 +80,8 @@ class AdminPropertyController {
         ...req.body,
         image: processedImages.mainImage, // Set the main image
         images: processedImages.allImages, // Set all images for database storage
-        createdBy: req.user.id
+        createdBy: req.user.id,
+        isSoldOut: req.body.isSoldOut || false
       };
 
       // Remove base64Images from propertyData to avoid sending to database
@@ -161,7 +162,8 @@ class AdminPropertyController {
         ...req.body,
         image: processedImages.allImages[0] || existingProperty.image, // First image is main
         images: processedImages.allImages,
-        updatedBy: req.user.id
+        updatedBy: req.user.id,
+        isSoldOut: req.body.isSoldOut || false
       };
 
       // Validate arrays

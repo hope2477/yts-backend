@@ -2,6 +2,13 @@ const db = require('../config/database');
 const imageUploadHelper = require('../utils/imageUploadHelper')
 
 class PropertyRepository {
+    convertBitToBoolean(value) {
+        if (Buffer.isBuffer(value)) {
+            return value[0] === 1;
+        }
+        return Boolean(value);
+    }
+
     // Admin-specific methods for property management
     async getAllPropertiesForAdmin({ page, limit, search, status, isFeatured }) {
         try {
@@ -18,8 +25,9 @@ class PropertyRepository {
                     p.numOfBathrooms, 
                     p.numOfVehicleParking,
                     p.image,
-                    p.isFeatured,
-                    p.isActive,
+                    p.isSoldOut,
+                    CAST(p.isFeatured AS UNSIGNED) as isFeatured,
+                    CAST(p.isActive AS UNSIGNED) as isActive,
                     CASE 
                         WHEN (
                             SELECT COUNT(*) 
@@ -78,11 +86,11 @@ class PropertyRepository {
                     propertyClass: row.propertyClass,
                     numOfBedrooms: row.numOfBedrooms,
                     numOfBathrooms: row.numOfBathrooms,
-                    numOfVehicleParking: row.numOfVehicleParking,
-                    isFeatured: Boolean(row.isFeatured),
+                    isFeatured: this.convertBitToBoolean(row.isFeatured),
                     status: row.status,
                     image: imageUploadHelper.getImageUrl(row.image),
-                    isActive: Boolean(row.isActive)
+                    isActive: this.convertBitToBoolean(row.isActive),
+                    isSoldOut: this.convertBitToBoolean(row.isSoldOut),
                 })),
                 pagination: {
                     page,
@@ -137,8 +145,9 @@ class PropertyRepository {
             
             return {
                 ...property,
-                isActive: Boolean(property.isActive),
-                isFeatured: Boolean(property.isFeatured),
+                isActive: this.convertBitToBoolean(property.isActive),
+                isFeatured: this.convertBitToBoolean(property.isFeatured),
+                isSoldOut: this.convertBitToBoolean(property.isSoldOut),
                 features: featureRows,
                 image: imageUploadHelper.getImageUrl(property.image), // Add this line
                 images: imageRows.map(row => imageUploadHelper.getImageUrl(row.image)), // Add this
@@ -161,7 +170,7 @@ class PropertyRepository {
                     name, address, propertyType, propertyClass, numOfBedrooms,
                     numOfBathrooms, numOfVehicleParking, description, furnishDetails,
                     floor, dailyCharge, weeklyCharge, monthlyCharge, image,
-                    isFeatured, isActive, createdBy, createdDate, rentalTypeID
+                    isFeatured, isActive, createdBy, createdDate, rentalTypeID, isSoldOut
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
             `, [
                 propertyData.name,
@@ -181,7 +190,8 @@ class PropertyRepository {
                 propertyData.isFeatured || false,
                 propertyData.isActive !== undefined ? propertyData.isActive : true,
                 propertyData.createdBy,
-                propertyData.rentalTypeID
+                propertyData.rentalTypeID,
+                propertyData.isSoldOut || false
             ]);
             
             const propertyId = result.insertId;
@@ -236,7 +246,7 @@ class PropertyRepository {
                 numOfBedrooms=?, numOfBathrooms=?, numOfVehicleParking=?,
                 description=?, furnishDetails=?, floor=?, dailyCharge=?,
                 weeklyCharge=?, monthlyCharge=?, image=?, isFeatured=?,
-                updatedBy=?, updatedDate=NOW()
+                updatedBy=?, updatedDate=NOW(), isSoldOut=?
             WHERE id=?`,
             [
                 updateData.name,
@@ -255,6 +265,7 @@ class PropertyRepository {
                 updateData.image, // always first processed image
                 updateData.isFeatured || false,
                 updateData.updatedBy,
+                updateData.isSoldOut || false,
                 id
             ]
             );
@@ -308,17 +319,50 @@ class PropertyRepository {
 
 
     async deleteProperty(id, userId) {
+        const connection = await db.getConnection();
         try {
-            const [result] = await db.query(`
-                UPDATE property 
-                SET isActive = 0, isFeatured = 0, updatedBy = ?, updatedDate = NOW()
-                WHERE id = ?
-            `, [userId, id]);
-            
+            await connection.beginTransaction();
+
+            // Get all images for this property
+            const [imageRows] = await connection.query(
+                'SELECT image FROM propertyImages WHERE propertyID = ?',
+                [id]
+            );
+
+            // Delete from propertyImages
+            await connection.query('DELETE FROM propertyImages WHERE propertyID = ?', [id]);
+
+            // Delete from propertyAvailability
+            await connection.query('DELETE FROM propertyAvailability WHERE propertyID = ?', [id]);
+
+            // Delete from propertyFeatures
+            await connection.query('DELETE FROM propertyfeatures WHERE propertyID = ?', [id]);
+
+            // Delete property itself
+            const [result] = await connection.query('DELETE FROM property WHERE id = ?', [id]);
+
+            // Commit transaction
+            await connection.commit();
+
+            // Delete image files from public/uploads/rentalImages
+            for (const row of imageRows) {
+                if (row.image) {
+                    const filePath = path.join(__dirname, '../public/uploads/rentalImages', row.image);
+                    if (fs.existsSync(filePath)) {
+                        fs.unlink(filePath, (err) => {
+                            if (err) console.error('Error deleting image file:', err.message);
+                        });
+                    }
+                }
+            }
+
             return result.affectedRows > 0;
         } catch (error) {
+            await connection.rollback();
             console.error('Error deleting property:', error.message);
             throw new Error('Unable to delete property');
+        } finally {
+            connection.release();
         }
     }
 
@@ -385,7 +429,7 @@ class PropertyRepository {
           let query = `
           SELECT p.id, p.name, p.address, p.propertyType, p.propertyClass, 
                  p.numOfBedrooms, p.numOfBathrooms, p.numOfVehicleParking, 
-                 p.isActive, rt.name AS type, p.rentalTypeID, p.image,
+                 p.isActive, rt.name AS type, p.rentalTypeID, p.image, p.isSoldOut,
                  (SELECT JSON_ARRAYAGG(
                     JSON_OBJECT('startDate', pa.startDate, 'endDate', pa.endDate)
                   )
@@ -435,7 +479,8 @@ class PropertyRepository {
           // Transform the rows to convert isActive to a boolean
           const result = properties.map(property => ({
               ...property,
-              isActive: property.isActive === 1, // Convert to boolean
+              isActive: this.convertBitToBoolean(property.isActive), // Convert to boolean
+              isSoldOut: this.convertBitToBoolean(property.isSoldOut),
               image: imageUploadHelper.getImageUrl(property.image)
           }));
   
@@ -449,7 +494,7 @@ class PropertyRepository {
 
     async updatePropertyFeaturedStatus(id, isFeatured, userId) {
         try {
-            // First check if we're trying to feature an inactive property
+            // Only allow featuring if property is active
             if (isFeatured) {
                 const [activeCheck] = await db.query(
                     'SELECT isActive FROM property WHERE id = ?',
@@ -461,18 +506,20 @@ class PropertyRepository {
                 }
             }
 
+            const bitValue = isFeatured ? "b'1'" : "b'0'";
+
             const [result] = await db.query(`
                 UPDATE property 
-                SET isFeatured = ?,
-                    updatedBy = ?,
+                SET isFeatured = ${bitValue}, 
+                    updatedBy = ?, 
                     updatedDate = NOW()
                 WHERE id = ?
-            `, [isFeatured ? 1 : 0, userId, id]);
+            `, [userId, id]);
 
             return result.affectedRows > 0;
         } catch (error) {
             console.error('Error updating property featured status:', error.message);
-            throw new Error('Unable to update property featured status');
+            throw error;
         }
     }
 
@@ -517,8 +564,9 @@ class PropertyRepository {
 
       const result = {
         ...property,
-        isActive: property.isActive === 1,  // Explicitly check for 1
-        isFeatured: property.isFeatured === 1,  // Explicitly check for 1
+        isActive: this.convertBitToBoolean(property.isActive),
+        isFeatured: this.convertBitToBoolean(property.isFeatured),
+        isSoldOut: this.convertBitToBoolean(property.isSoldOut),
         image: imageUploadHelper.getImageUrl(property.image), // Convert to full URL
         features,
         images,
