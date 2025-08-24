@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const imageUploadHelper = require('../utils/imageUploadHelper'); // Add this import
 
 class CommonRepository {
   async getFeaturedListings() {
@@ -32,14 +33,16 @@ class CommonRepository {
         const featuredProperties = properties.map(property => ({
             ...property,
             isActive: Boolean(property.isActive),
-            isFeatured: Boolean(property.isFeatured)
+            isFeatured: Boolean(property.isFeatured),
+            image: imageUploadHelper.getImageUrl(property.image) // Add this line
         }));
 
         // Convert `isActive` and `isFeatured` to boolean for vehicles
         const featuredVehicles = vehicles.map(vehicle => ({
             ...vehicle,
             isActive: Boolean(vehicle.isActive),
-            isFeatured: Boolean(vehicle.isFeatured)
+            isFeatured: Boolean(vehicle.isFeatured),
+            image: imageUploadHelper.getImageUrl(vehicle.image) // Add this line
         }));
 
         // Combine properties and vehicles into a single array

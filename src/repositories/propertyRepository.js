@@ -434,6 +434,7 @@ class PropertyRepository {
           const result = properties.map(property => ({
               ...property,
               isActive: property.isActive === 1, // Convert to boolean
+              image: imageUploadHelper.getImageUrl(property.image)
           }));
   
           return { data: result };

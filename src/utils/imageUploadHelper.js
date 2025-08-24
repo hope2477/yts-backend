@@ -8,7 +8,7 @@ class ImageUploadHelper {
     this.ensureUploadDirectory();
 
     // Read frontend base URL from .env
-    this.frontendUrl = process.env.FRONTEND_URL || '';
+    this.frontendUrl = process.env.FRONTEND_URL_IMAGES || '';
   }
 
   ensureUploadDirectory() {

@@ -15,14 +15,15 @@ const app = express();
 app.use(bodyParser.json({ limit: '50mb' })); // Increase limit for base64 images
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 
-// Serve static files from images directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve static files from uploads directory
+app.use(express.static(path.join(__dirname, 'public')));
 
+// Update CORS to allow image loading
 app.use(cors({
-  origin: ['https://ytsenterprise.com'],
+  origin: ['https://www.ytsenterprise.com', 'https://ytsenterprise.com'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,  // If you're passing cookies or authentication tokens
+  credentials: true,
 }));
 
 // Routes

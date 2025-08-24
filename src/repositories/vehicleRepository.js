@@ -487,6 +487,7 @@ class VehicleRepository {
         const result = vehicles.map(vehicle => ({
             ...vehicle,
             isActive: Boolean(vehicle.isActive), // Convert to boolean
+            image: imageUploadHelper.getImageUrl(vehicle.image)
         }));
 
         return { data: result };
@@ -536,11 +537,8 @@ class VehicleRepository {
         featureID: feature.featureID,
         featureName: feature.featureName,
       }));
-
-      // Convert filenames to full URLs for frontend
-      const imageUploadHelper = require('../utils/imageUploadHelper');
-      // const images = imageResult.map(image => imageUploadHelper.getImageUrl(image.image));
-      const images = imageResult.map(image => image.image);
+      
+      const images = imageResult.map(image => imageUploadHelper.getImageUrl(image.image));
 
       // Transform the vehicle data to convert isActive and isFeatured to boolean
       const result = {
