@@ -19,6 +19,7 @@ class PropertyRepository {
                     p.numOfVehicleParking,
                     p.image,
                     p.isFeatured,
+                    p.isActive,
                     CASE 
                         WHEN (
                             SELECT COUNT(*) 
@@ -80,7 +81,8 @@ class PropertyRepository {
                     numOfVehicleParking: row.numOfVehicleParking,
                     isFeatured: Boolean(row.isFeatured),
                     status: row.status,
-                    image: imageUploadHelper.getImageUrl(row.image)
+                    image: imageUploadHelper.getImageUrl(row.image),
+                    isActive: Boolean(row.isActive)
                 })),
                 pagination: {
                     page,

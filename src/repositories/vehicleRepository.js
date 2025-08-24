@@ -18,6 +18,7 @@ class VehicleRepository {
           TRIM(v.vehicleClass) AS vehicleClass,
           v.numOfPassengers, 
           v.isFeatured, 
+          v.isActive,
           v.image,
           CASE 
             WHEN NOT EXISTS (
@@ -30,7 +31,7 @@ class VehicleRepository {
             ELSE 'UNAVAILABLE'
           END AS status
         FROM vehicle v
-        WHERE v.isActive = 1
+        WHERE 1 = 1
       `;
       
       const params = [];
@@ -53,7 +54,7 @@ class VehicleRepository {
       const total = countResult[0].total;
       
       // Add pagination
-      query += ' ORDER BY v.createdDate DESC LIMIT ? OFFSET ?';
+      query += ' ORDER BY v.isActive DESC, v.createdDate DESC LIMIT ? OFFSET ?';
       params.push(limit, (page - 1) * limit);
       
       const [rows] = await db.query(query, params);
@@ -62,6 +63,7 @@ class VehicleRepository {
         data: rows.map(row => ({
           ...row,
           isFeatured: Boolean(row.isFeatured),
+          isActive: Boolean(row.isActive),
           image: imageUploadHelper.getImageUrl(row.image) 
         })),
         pagination: {
@@ -327,17 +329,69 @@ class VehicleRepository {
 
 
   async deleteVehicle(id, userId) {
+    const connection = await db.getConnection();
     try {
-      const [result] = await db.query(`
-        UPDATE vehicle 
-        SET isActive = 0, isFeatured = 0, updatedBy = ?, updatedDate = NOW()
-        WHERE id = ?
-      `, [userId, id]);
-      
-      return result.affectedRows > 0;
+      await connection.beginTransaction();
+
+      // 1. Get all images before deletion (main + additional images)
+      const [vehicleRow] = await connection.query(
+        'SELECT image FROM vehicle WHERE id = ?',
+        [id]
+      );
+      const [imageRows] = await connection.query(
+        'SELECT image FROM vehicleImages WHERE vehicleID = ?',
+        [id]
+      );
+
+      if (!vehicleRow.length) {
+        await connection.rollback();
+        return false; // Vehicle not found
+      }
+
+      const allImages = [
+        vehicleRow[0].image,
+        ...imageRows.map(img => img.image)
+      ].filter(Boolean);
+
+      // 2. Delete dependent records first
+      await connection.query('DELETE FROM vehicleFeature WHERE vehicleId = ?', [id]);
+      await connection.query('DELETE FROM vehicleImages WHERE vehicleID = ?', [id]);
+      await connection.query('DELETE FROM vehicleAvailability WHERE vehicleId = ?', [id]);
+
+      // 3. Delete vehicle itself
+      const [result] = await connection.query(
+        'DELETE FROM vehicle WHERE id = ?',
+        [id]
+      );
+
+      if (result.affectedRows === 0) {
+        await connection.rollback();
+        return false;
+      }
+
+      await connection.commit();
+
+      // 4. Remove image files from uploads folder
+      const fs = require('fs');
+      const path = require('path');
+      const uploadDir = path.join(process.cwd(), 'public/uploads/rentalImages');
+
+      allImages.forEach(img => {
+        const filePath = path.join(uploadDir, img);
+        if (fs.existsSync(filePath)) {
+          fs.unlink(filePath, err => {
+            if (err) console.error('Error deleting file:', filePath, err.message);
+          });
+        }
+      });
+
+      return true;
     } catch (error) {
-      console.error('Error deleting vehicle:', error.message);
+      await connection.rollback();
+      console.error('Error hard deleting vehicle:', error.message);
       throw new Error('Unable to delete vehicle');
+    } finally {
+      connection.release();
     }
   }
 
