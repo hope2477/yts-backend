@@ -98,7 +98,10 @@ class VehicleRepository {
           v.description,
           v.color,
           v.NumberPlate,
-          v.image
+          v.image,
+          v.dailyCharge, 
+          v.weeklyCharge, 
+          v.monthlyCharge
         FROM vehicle v
         JOIN rentalType rt ON v.rentalTypeId = rt.id
         WHERE v.id = ?
@@ -249,7 +252,7 @@ class VehicleRepository {
         SET make=?, model=?, year=?, fuelType=?, transmission=?, 
             numOfPassengers=?, vehicleClass=?, description=?, color=?, 
             bodyStyle=?, dailyCharge=?, weeklyCharge=?, monthlyCharge=?, 
-            NumberPlate=?, image=?, isFeatured=?, isActive=?, 
+            NumberPlate=?, image=?, isFeatured=?,
             updatedBy=?, updatedDate=NOW()
         WHERE id=?`,
         [
@@ -269,7 +272,6 @@ class VehicleRepository {
           updateData.NumberPlate,
           updateData.image, // Always use processed first image
           updateData.isFeatured,
-          updateData.isActive,
           updateData.updatedBy,
           id
         ]

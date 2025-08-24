@@ -9,6 +9,7 @@ const adminInquiryController = require('../controllers/adminInquiryController');
 const adminFeatureController = require('../controllers/adminFeatureController');
 const adminDashboardController = require('../controllers/adminDashboardController');
 const adminSystemController = require('../controllers/adminSystemController');
+const adminHolidayHomeController = require('../controllers/adminHolidayHomeController')
 
 const router = express.Router();
 
@@ -161,6 +162,16 @@ router.post('/system/cleanup-images',
 router.get('/system/storage-stats', 
   authMiddleware.requirePermission('system.view_dashboard'), 
   adminSystemController.getStorageStats
+);
+
+// Holiday Home availability routes
+router.get('/holidayHome/:id/availability', 
+  authMiddleware.requirePermission('property.view'), 
+  adminHolidayHomeController.getHolidayHomeAvailabilityByID
+);
+router.put('/holidayHome/:id/availability', 
+  authMiddleware.requirePermission('property.view'), 
+  adminHolidayHomeController.updateHolidayHomeAvailability
 );
 
 module.exports = router;

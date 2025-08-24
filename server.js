@@ -32,6 +32,7 @@ const propertyRoutes = require('./src/routes/propertyRoutes');
 const commonRoutes = require('./src/routes/commonRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
+const holidayHomeRoutes = require('./src/routes/holidayHomeRoutes')
 
 app.use('/api/inquiry', inquiryRoutes);
 app.use('/api/vehicle', vehicleRoutes);
@@ -39,6 +40,7 @@ app.use('/api/property', propertyRoutes);
 app.use('/api/common', commonRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/holidayHome', holidayHomeRoutes)
 
 // Error Handling
 app.use((err, req, res, next) => {

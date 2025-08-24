@@ -234,7 +234,7 @@ class PropertyRepository {
                 numOfBedrooms=?, numOfBathrooms=?, numOfVehicleParking=?,
                 description=?, furnishDetails=?, floor=?, dailyCharge=?,
                 weeklyCharge=?, monthlyCharge=?, image=?, isFeatured=?,
-                isActive=?, updatedBy=?, updatedDate=NOW()
+                updatedBy=?, updatedDate=NOW()
             WHERE id=?`,
             [
                 updateData.name,
@@ -252,7 +252,6 @@ class PropertyRepository {
                 updateData.monthlyCharge || null,
                 updateData.image, // always first processed image
                 updateData.isFeatured || false,
-                updateData.isActive !== undefined ? updateData.isActive : true,
                 updateData.updatedBy,
                 id
             ]
