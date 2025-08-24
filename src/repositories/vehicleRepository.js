@@ -10,6 +10,7 @@ class VehicleRepository {
           v.id, 
           TRIM(v.make) AS make, 
           TRIM(v.model) AS model, 
+          v.year,
           TRIM(v.NumberPlate) AS NumberPlate,
           TRIM(v.bodyStyle) AS bodyStyle, 
           TRIM(v.transmission) AS transmission, 
@@ -428,7 +429,9 @@ class VehicleRepository {
     try {
         // Base query
         let query = `
-        SELECT v.id, v.make, v.model, v.year, v.fuelType, v.transmission, v.numOfPassengers, v.vehicleClass, v.bodyStyle, v.isActive,
+        SELECT v.id, v.make, 
+               CONCAT(v.model, ' (', v.year, ')') AS model,
+               v.year, v.fuelType, v.transmission, v.numOfPassengers, v.vehicleClass, v.bodyStyle, v.isActive,
                rt.name AS type, v.rentalTypeID, v.image,
                (SELECT JSON_ARRAYAGG(
                   JSON_OBJECT('startDate', va.startDate, 'endDate', va.endDate)
@@ -497,7 +500,12 @@ class VehicleRepository {
   async getVehicleByID(id) {
     try {
       // Get the vehicle details
-      const [vehicleDetails] = await db.query('SELECT * FROM vehicle WHERE id = ?', [id]);
+      const [vehicleDetails] = await db.query(
+        `SELECT v.*, CONCAT(v.model, ' (', v.year, ')') AS model
+        FROM vehicle v
+        WHERE v.id = ?`,
+        [id]
+      );
       const vehicle = vehicleDetails[0];
 
       // Null check

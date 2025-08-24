@@ -15,7 +15,7 @@ class CommonRepository {
 
         // Query to get featured and active vehicles
         const [vehicles] = await db.query(
-            `SELECT v.id, CONCAT(v.make, ' ', v.model) AS name, v.model, v.year, v.fuelType, v.transmission, v.numOfPassengers, v.vehicleClass AS label, 
+            `SELECT v.id, CONCAT(v.make, ' ', v.model, ' (', v.year, ')') AS name, v.model, v.year, v.fuelType, v.transmission, v.numOfPassengers, v.vehicleClass AS label, 
                     v.bodyStyle, v.isActive, v.isFeatured, rt.name AS type, v.image
              FROM vehicle v
              JOIN rentalType rt ON v.rentalTypeID = rt.id
