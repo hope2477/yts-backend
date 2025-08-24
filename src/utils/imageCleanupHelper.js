@@ -4,7 +4,7 @@ const db = require('../config/database');
 
 class ImageCleanupHelper {
   constructor() {
-    this.uploadDir = path.join(__dirname, '../../uploads/rentalImages');
+      this.uploadDir = path.join(process.cwd(), 'public/uploads/rentalImages');
   }
 
   /**

@@ -4,7 +4,7 @@ require('dotenv').config()
 
 class ImageUploadHelper {
   constructor() {
-    this.uploadDir = path.join(__dirname, '../../uploads/rentalImages');
+    this.uploadDir = path.join(process.cwd(), 'public/uploads/rentalImages');
     this.ensureUploadDirectory();
 
     // Read frontend base URL from .env
