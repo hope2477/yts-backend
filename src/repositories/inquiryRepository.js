@@ -39,19 +39,20 @@ class InquiryRepository {
                 i.id, 
                 i.name, 
                 i.contactNumber, 
+                i.createdDate,
                 rt.name as rentalTypeName,
                 CASE 
-                WHEN i.vehicleID IS NOT NULL THEN CONCAT(v.make, ' ', v.model)
-                WHEN i.propertyID IS NOT NULL THEN p.name
-                WHEN i.holidayHomeID IS NOT NULL THEN 'Holiday Home'
-                ELSE 'Unknown'
+                    WHEN i.vehicleID IS NOT NULL THEN CONCAT(v.make, ' ', v.model, ' (', v.numberPlate, ')')
+                    WHEN i.propertyID IS NOT NULL THEN p.name
+                    WHEN i.holidayHomeID IS NOT NULL THEN 'Holiday Home'
+                    ELSE 'Unknown'
                 END as rentalName,
                 i.status,
                 i.updatedDate,
                 i.remarks,
                 i.message
             ${baseQuery}
-            ORDER BY i.updatedDate DESC
+            ORDER BY i.createdDate DESC
             LIMIT ? OFFSET ?
             `;
             
@@ -159,9 +160,9 @@ class InquiryRepository {
             const query = `
                 INSERT INTO inquiry (
                     name, email, contactNumber, message, status, remarks, rentalTypeID, vehicleID,
-                    holidayHomeID, propertyID, updatedDate, updatedBy, startDate, endDate
+                    holidayHomeID, propertyID, updatedDate, updatedBy, startDate, endDate, createdDate
                 ) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
 
             const values = [
@@ -179,6 +180,7 @@ class InquiryRepository {
                 inquiryData.updatedBy,
                 inquiryData.startDate,
                 inquiryData.endDate,
+                new Date() 
             ];
 
             const [result] = await db.query(query, values);
