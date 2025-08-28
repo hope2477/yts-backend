@@ -171,7 +171,7 @@ class PropertyRepository {
                     numOfBathrooms, numOfVehicleParking, description, furnishDetails,
                     floor, dailyCharge, weeklyCharge, monthlyCharge, image,
                     isFeatured, isActive, createdBy, createdDate, rentalTypeID, isSoldOut
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
             `, [
                 propertyData.name,
                 propertyData.address,
@@ -324,39 +324,58 @@ class PropertyRepository {
             await connection.beginTransaction();
 
             // Get all images for this property
+            const [propertyRow] = await connection.query(
+                'SELECT image FROM property WHERE id = ?',
+                [id]
+            );
             const [imageRows] = await connection.query(
                 'SELECT image FROM propertyImages WHERE propertyID = ?',
                 [id]
             );
 
-            // Delete from propertyImages
-            await connection.query('DELETE FROM propertyImages WHERE propertyID = ?', [id]);
-
-            // Delete from propertyAvailability
-            await connection.query('DELETE FROM propertyAvailability WHERE propertyID = ?', [id]);
-
-            // Delete from propertyFeatures
-            await connection.query('DELETE FROM propertyfeatures WHERE propertyID = ?', [id]);
-
-            // Delete property itself
-            const [result] = await connection.query('DELETE FROM property WHERE id = ?', [id]);
-
-            // Commit transaction
-            await connection.commit();
-
-            // Delete image files from public/uploads/rentalImages
-            for (const row of imageRows) {
-                if (row.image) {
-                    const filePath = path.join(__dirname, '../public/uploads/rentalImages', row.image);
-                    if (fs.existsSync(filePath)) {
-                        fs.unlink(filePath, (err) => {
-                            if (err) console.error('Error deleting image file:', err.message);
-                        });
-                    }
-                }
+             if (!propertyRow.length) {
+                await connection.rollback();
+                return false; // Property not found
             }
 
-            return result.affectedRows > 0;
+            const allImages = [
+                propertyRow[0].image,
+                ...imageRows.map(img => img.image)
+            ].filter(Boolean);
+
+            // 2. Delete dependent records first
+            await connection.query('DELETE FROM propertyfeatures WHERE propertyId = ?', [id]);
+            await connection.query('DELETE FROM propertyImages WHERE propertyId = ?', [id]);
+            await connection.query('DELETE FROM propertyAvailability WHERE propertyId = ?', [id]);
+
+            // 3. Delete vehicle itself
+            const [result] = await connection.query(
+                'DELETE FROM property WHERE id = ?',
+                [id]
+            );
+
+            if (result.affectedRows === 0) {
+                await connection.rollback();
+                return false;
+            }
+
+            await connection.commit();
+
+            // 4. Remove image files from uploads folder
+            const fs = require('fs');
+            const path = require('path');
+            const uploadDir = path.join(process.cwd(), 'public/uploads/rentalImages');
+
+            allImages.forEach(img => {
+                const filePath = path.join(uploadDir, img);
+                if (fs.existsSync(filePath)) {
+                fs.unlink(filePath, err => {
+                    if (err) console.error('Error deleting file:', filePath, err.message);
+                });
+                }
+            });
+
+            return true;
         } catch (error) {
             await connection.rollback();
             console.error('Error deleting property:', error.message);
