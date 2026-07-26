@@ -56,7 +56,10 @@ class AdminVehicleController {
       let processedImages = { mainImage: '', allImages: [] };
       
       if (req.body.images && Array.isArray(req.body.images) && req.body.images.length > 0) {
-        const identifier = req.body.NumberPlate || `${req.body.make}${req.body.model}`;
+        const identifier =
+          [req.body.make, req.body.model, req.body.year].filter(Boolean).join(' ') ||
+          req.body.NumberPlate ||
+          'vehicle';
         processedImages = await imageUploadHelper.processImagesForCreation(
           req.body.images, 
           'vehicle', 
@@ -127,9 +130,12 @@ class AdminVehicleController {
 
       if (req.body.images && Array.isArray(req.body.images)) {
         const identifier =
+          [req.body.make || existingVehicle.make, req.body.model || existingVehicle.model, req.body.year || existingVehicle.year]
+            .filter(Boolean)
+            .join(' ') ||
           req.body.NumberPlate ||
           existingVehicle.NumberPlate ||
-          `${existingVehicle.make}${existingVehicle.model}`;
+          'vehicle';
 
         const existingFilenames = (existingVehicle.images || []).map(img =>
           imageUploadHelper.getFilenameFromUrl(img)

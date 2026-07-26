@@ -5,8 +5,12 @@ class DashboardService {
     return dashboardRepository.getDashboardStats();
   }
 
-  async getRecentInquiries(limit) {
-    return dashboardRepository.getRecentInquiries(limit);
+  async getDashboardOverview() {
+    return dashboardRepository.getDashboardOverview();
+  }
+
+  async getRecentInquiries(limit, status) {
+    return dashboardRepository.getRecentInquiries(limit, status);
   }
 
   async getMonthlyStats(year) {

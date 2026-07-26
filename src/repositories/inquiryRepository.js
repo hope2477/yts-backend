@@ -24,7 +24,7 @@ class InquiryRepository {
             }
 
             if (startDate && endDate) {
-            baseQuery += ' AND i.updatedDate BETWEEN ? AND ?';
+            baseQuery += ' AND i.createdDate BETWEEN ? AND ?';
             params.push(startDate, endDate);
             }
 
@@ -128,21 +128,29 @@ class InquiryRepository {
 
     async getInquiryStats() {
         try {
+            const pendingSql = `LOWER(TRIM(status)) = 'pending'`;
+            const closedSql = `LOWER(TRIM(status)) IN ('approved', 'completed', 'rejected')`;
+
             const [totalCount] = await db.query('SELECT COUNT(*) as count FROM inquiry');
-            const [pendingCount] = await db.query('SELECT COUNT(*) as count FROM inquiry WHERE status = "PENDING"');
-            const [completedCount] = await db.query('SELECT COUNT(*) as count FROM inquiry WHERE status = "COMPLETED"');
+            const [pendingCount] = await db.query(
+                `SELECT COUNT(*) as count FROM inquiry WHERE ${pendingSql}`
+            );
+            const [completedCount] = await db.query(
+                `SELECT COUNT(*) as count FROM inquiry WHERE ${closedSql}`
+            );
             const [monthlyCount] = await db.query(`
-                SELECT COUNT(*) as count 
-                FROM inquiry 
-                WHERE MONTH(updatedDate) = MONTH(CURRENT_DATE()) 
-                AND YEAR(updatedDate) = YEAR(CURRENT_DATE())
+                SELECT COUNT(*) as count
+                FROM inquiry
+                WHERE createdDate IS NOT NULL
+                  AND MONTH(createdDate) = MONTH(CURRENT_DATE())
+                  AND YEAR(createdDate) = YEAR(CURRENT_DATE())
             `);
-            
+
             return {
-                total: totalCount[0].count,
-                pending: pendingCount[0].count,
-                completed: completedCount[0].count,
-                monthly: monthlyCount[0].count
+                total: Number(totalCount[0].count) || 0,
+                pending: Number(pendingCount[0].count) || 0,
+                completed: Number(completedCount[0].count) || 0,
+                monthly: Number(monthlyCount[0].count) || 0
             };
         } catch (error) {
             console.error('Error fetching inquiry stats:', error.message);
@@ -157,10 +165,11 @@ class InquiryRepository {
      */
     async saveInquiry(inquiryData) {
         try {
+            const now = inquiryData.createdDate || inquiryData.updatedDate || new Date();
             const query = `
                 INSERT INTO inquiry (
                     name, email, contactNumber, message, status, remarks, rentalTypeID, vehicleID,
-                    holidayHomeID, propertyID, updatedDate, updatedBy, startDate, endDate, createdDate
+                    holidayHomeID, propertyID, createdDate, updatedDate, updatedBy, startDate, endDate
                 ) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
@@ -176,16 +185,16 @@ class InquiryRepository {
                 inquiryData.vehicleID,
                 inquiryData.holidayHomeID,
                 inquiryData.propertyID,
-                inquiryData.updatedDate,
+                now,
+                inquiryData.updatedDate || now,
                 inquiryData.updatedBy,
                 inquiryData.startDate,
                 inquiryData.endDate,
-                new Date() 
             ];
 
             const [result] = await db.query(query, values);
 
-            return result.insertId; // Return the ID of the newly inserted inquiry
+            return result.insertId;
         } catch (error) {
             console.error('Error saving inquiry to the database:', error.message, error.stack);
             throw new Error('Database operation failed while saving inquiry.');

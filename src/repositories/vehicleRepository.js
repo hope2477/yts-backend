@@ -486,6 +486,7 @@ class VehicleRepository {
         SELECT v.id, v.make, 
                CONCAT(v.model, ' (', v.year, ')') AS model,
                v.year, v.fuelType, v.transmission, v.numOfPassengers, v.vehicleClass, v.bodyStyle, v.isActive,
+               v.isFeatured, v.dailyCharge, v.weeklyCharge, v.monthlyCharge, v.description,
                rt.name AS type, v.rentalTypeID, v.image,
                (SELECT JSON_ARRAYAGG(
                   JSON_OBJECT('startDate', va.startDate, 'endDate', va.endDate)
@@ -540,7 +541,8 @@ class VehicleRepository {
         // Transform the rows to convert isActive to a boolean
         const result = vehicles.map(vehicle => ({
             ...vehicle,
-            isActive: Boolean(vehicle.isActive), // Convert to boolean
+            isActive: Boolean(vehicle.isActive),
+            isFeatured: Boolean(vehicle.isFeatured),
             image: imageUploadHelper.getImageUrl(vehicle.image)
         }));
 

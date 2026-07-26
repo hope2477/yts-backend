@@ -18,9 +18,42 @@ app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 // Serve static files from uploads directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Update CORS to allow image loading
+/**
+ * CORS: production domains + Vercel preview/production + optional CORS_ORIGINS env
+ * (comma-separated extra origins, e.g. http://localhost:3000,https://my-app.vercel.app)
+ */
+const staticAllowedOrigins = [
+  'https://www.ytsenterprise.com',
+  'https://ytsenterprise.com',
+];
+
+const envOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+function isOriginAllowed(origin) {
+  if (!origin) return true; // non-browser / same-origin tools
+  if (staticAllowedOrigins.includes(origin)) return true;
+  if (envOrigins.includes(origin)) return true;
+  // Vercel deployments (production + preview)
+  try {
+    const { hostname } = new URL(origin);
+    if (hostname === 'vercel.app' || hostname.endsWith('.vercel.app')) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 app.use(cors({
-  origin: ['https://www.ytsenterprise.com', 'https://ytsenterprise.com'],
+  origin(origin, callback) {
+    if (isOriginAllowed(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -34,6 +67,8 @@ const commonRoutes = require('./src/routes/commonRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const holidayHomeRoutes = require('./src/routes/holidayHomeRoutes')
+const blogRoutes = require('./src/routes/blogRoutes');
+const seoRoutes = require('./src/routes/seoRoutes');
 
 app.use('/api/inquiry', inquiryRoutes);
 app.use('/api/vehicle', vehicleRoutes);
@@ -42,6 +77,8 @@ app.use('/api/common', commonRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/holidayHome', holidayHomeRoutes)
+app.use('/api/blog', blogRoutes);
+app.use('/api/seo', seoRoutes);
 
 // Error Handling
 app.use((err, req, res, next) => {

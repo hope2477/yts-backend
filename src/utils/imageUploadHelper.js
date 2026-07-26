@@ -49,9 +49,25 @@ class ImageUploadHelper {
   }
 
   /**
-   * Save multiple base64 images with proper naming convention
+   * Build SEO-friendly image filename stem (no extension).
+   * e.g. toyota-avanza-2016-car-rental-colombo-1
+   */
+  buildSeoFilenameStem(parts, index = 1) {
+    const raw = Array.isArray(parts) ? parts.join(' ') : String(parts || '');
+    const slug = raw
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 120);
+    const base = slug || 'listing';
+    return `${base}-${index}`;
+  }
+
+  /**
+   * Save multiple base64 images with SEO-friendly naming
    * @param {Array} base64Images - Array of base64 image strings
-   * @param {string} identifier - Vehicle number plate or property name
+   * @param {string} identifier - Legacy plate/name OR pre-built SEO stem (without -N suffix)
    * @param {string} type - 'vehicle' or 'property'
    * @returns {Promise<Array>} - Returns array of filenames only
    */
@@ -60,17 +76,18 @@ class ImageUploadHelper {
       return [];
     }
 
-    // Clean identifier (remove spaces and special characters)
-    const cleanIdentifier = identifier.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
-    
+    const typeSuffix =
+      type === 'property' ? 'apartment-rent-colombo' : 'car-rental-colombo';
+    const stemBase = this.buildSeoFilenameStem(`${identifier} ${typeSuffix}`, 0).replace(/-0$/, '');
+
     const savedImages = [];
-    
+
     for (let i = 0; i < base64Images.length; i++) {
-      const filename = `${cleanIdentifier}-${i + 1}`;
+      const filename = `${stemBase}-${i + 1}`;
       const savedFilename = await this.saveBase64Image(base64Images[i], filename);
       savedImages.push(savedFilename);
     }
-    
+
     return savedImages;
   }
 
@@ -212,12 +229,13 @@ class ImageUploadHelper {
       }
     });
 
-    // Save new base64 images with incremental suffix
-    const cleanIdentifier = identifier.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+    // Save new base64 images with incremental suffix (SEO-friendly stem)
+    const typeSuffix =
+      type === 'property' ? 'apartment-rent-colombo' : 'car-rental-colombo';
+    const stemBase = this.buildSeoFilenameStem(`${identifier} ${typeSuffix}`, 0).replace(/-0$/, '');
     const newSavedImages = [];
     for (let i = 0; i < newBase64Images.length; i++) {
-      // Correct way
-      const filename = `${cleanIdentifier}-${maxSuffix + i + 1}`; // no .jpg here
+      const filename = `${stemBase}-${maxSuffix + i + 1}`;
       const savedFilename = await this.saveBase64Image(newBase64Images[i], filename);
       newSavedImages.push(savedFilename);
     }

@@ -68,7 +68,10 @@ class AdminPropertyController {
       let processedImages = { mainImage: '', allImages: [] };
       
       if (req.body.images && Array.isArray(req.body.images) && req.body.images.length > 0) {
-        const identifier = req.body.name || 'property';
+        const identifier =
+          [req.body.name, req.body.address || req.body.propertyClass]
+            .filter(Boolean)
+            .join(' ') || 'property';
         processedImages = await imageUploadHelper.processImagesForCreation(
           req.body.images, 
           'property', 
@@ -139,7 +142,10 @@ class AdminPropertyController {
       let processedImages = { mainImage: '', allImages: [] };
 
       if (req.body.images && Array.isArray(req.body.images)) {
-        const identifier = req.body.name || existingProperty.name || 'property';
+        const identifier =
+          [req.body.name || existingProperty.name, req.body.address || existingProperty.address]
+            .filter(Boolean)
+            .join(' ') || 'property';
         const existingFilenames = (existingProperty.images || []).map(img =>
           imageUploadHelper.getFilenameFromUrl(img)
         );

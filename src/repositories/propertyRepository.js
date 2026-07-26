@@ -448,7 +448,8 @@ class PropertyRepository {
           let query = `
           SELECT p.id, p.name, p.address, p.propertyType, p.propertyClass, 
                  p.numOfBedrooms, p.numOfBathrooms, p.numOfVehicleParking, 
-                 p.isActive, rt.name AS type, p.rentalTypeID, p.image, p.isSoldOut,
+                 p.isActive, p.isFeatured, p.dailyCharge, p.weeklyCharge, p.monthlyCharge,
+                 p.description, rt.name AS type, p.rentalTypeID, p.image, p.isSoldOut,
                  (SELECT JSON_ARRAYAGG(
                     JSON_OBJECT('startDate', pa.startDate, 'endDate', pa.endDate)
                   )
@@ -498,7 +499,8 @@ class PropertyRepository {
           // Transform the rows to convert isActive to a boolean
           const result = properties.map(property => ({
               ...property,
-              isActive: this.convertBitToBoolean(property.isActive), // Convert to boolean
+              isActive: this.convertBitToBoolean(property.isActive),
+              isFeatured: this.convertBitToBoolean(property.isFeatured),
               isSoldOut: this.convertBitToBoolean(property.isSoldOut),
               image: imageUploadHelper.getImageUrl(property.image)
           }));

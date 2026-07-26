@@ -10,6 +10,7 @@ const adminFeatureController = require('../controllers/adminFeatureController');
 const adminDashboardController = require('../controllers/adminDashboardController');
 const adminSystemController = require('../controllers/adminSystemController');
 const adminHolidayHomeController = require('../controllers/adminHolidayHomeController')
+const adminBlogController = require('../controllers/adminBlogController');
 
 const router = express.Router();
 
@@ -17,6 +18,10 @@ const router = express.Router();
 router.use(authMiddleware.verifyToken);
 
 // Dashboard routes
+router.get('/dashboard/overview',
+  authMiddleware.requirePermission('system.view_dashboard'),
+  adminDashboardController.getDashboardOverview
+);
 router.get('/dashboard/stats', 
   authMiddleware.requirePermission('system.view_dashboard'), 
   adminDashboardController.getDashboardStats
@@ -26,7 +31,7 @@ router.get('/dashboard/recent-inquiries',
   adminDashboardController.getRecentInquiries
 );
 router.get('/dashboard/monthly-stats', 
-  authMiddleware.requirePermission('system.view_reports'), 
+  authMiddleware.requirePermission('system.view_dashboard'), 
   adminDashboardController.getMonthlyStats
 );
 router.get('/dashboard/popular-vehicles', 
@@ -172,6 +177,30 @@ router.get('/holidayHome/:id/availability',
 router.put('/holidayHome/:id/availability', 
   authMiddleware.requirePermission('property.view'), 
   adminHolidayHomeController.updateHolidayHomeAvailability
+);
+
+// Blog management routes
+router.get('/blogs',
+  authMiddleware.requirePermission('blog.view'),
+  adminBlogController.getAllBlogs.bind(adminBlogController)
+);
+router.get('/blogs/:id',
+  authMiddleware.requirePermission('blog.view'),
+  adminBlogController.getBlogById.bind(adminBlogController)
+);
+router.post('/blogs',
+  authMiddleware.requirePermission('blog.create'),
+  imageUploadMiddleware.validateImageUpload(),
+  adminBlogController.createBlog.bind(adminBlogController)
+);
+router.put('/blogs/:id',
+  authMiddleware.requirePermission('blog.update'),
+  imageUploadMiddleware.validateImageUpload(),
+  adminBlogController.updateBlog.bind(adminBlogController)
+);
+router.delete('/blogs/:id',
+  authMiddleware.requirePermission('blog.delete'),
+  adminBlogController.deleteBlog.bind(adminBlogController)
 );
 
 module.exports = router;

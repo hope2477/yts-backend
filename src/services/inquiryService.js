@@ -28,24 +28,34 @@ class InquiryService {
     }
 
     async sendContactDetails({ firstName, lastName, email, phoneNumber, message }) {
-        const companyEmailBody = loadEmailTemplate('email-contact-details.html', { firstName, lastName, email, phoneNumber, message });
-
-        const customerEmailBody = loadEmailTemplate('email-acknowledge.html', { name: `${firstName} ${lastName}` });
-
-        // Send email to the company
-        await emailHelper.sendEmail({
-            to: process.env.SUPPORT_EMAIL,
-            subject: `Contact Us Inquiry from ${firstName} ${lastName}`,
-            html: companyEmailBody,
+        const companyEmailBody = loadEmailTemplate('email-contact-details.html', {
+            firstName,
+            lastName,
+            email,
+            phoneNumber,
+            message,
         });
 
-        // Send acknowledgment email to the customer
-        await emailHelper.sendEmail({
-            to: email,
-            subject: `Thank you for reaching out to us!`,
-            html: customerEmailBody,
+        const customerEmailBody = loadEmailTemplate('email-acknowledge.html', {
+            name: `${firstName} ${lastName}`,
         });
-    };
+
+        // Fire both in parallel without blocking the HTTP response
+        Promise.all([
+            emailHelper.sendEmailSafe({
+                to: process.env.SUPPORT_EMAIL,
+                subject: `Contact Us Inquiry from ${firstName} ${lastName}`,
+                html: companyEmailBody,
+            }),
+            emailHelper.sendEmailSafe({
+                to: email,
+                subject: `Thank you for reaching out to us!`,
+                html: customerEmailBody,
+            }),
+        ]).catch((err) => {
+            console.error('Contact email batch failed:', err.message);
+        });
+    }
 
     async sendInquiryDetails({
         startDate,
@@ -60,66 +70,64 @@ class InquiryService {
         holidayHomeID,
     }) {
         try {
-            let rentalDetails = "";
-            let dateDetails = "";
-            // Save the inquiry details to the database
+            let rentalDetails = '';
+            let dateDetails = '';
+            // Save the inquiry details to the database first
+            const now = new Date();
             const inquiryData = {
                 name,
                 email,
                 contactNumber: phoneNumber,
                 message,
-                status: 'Pending', // Default status
-                remarks: null, // Optional remarks
+                status: 'Pending',
+                remarks: null,
                 rentalTypeID: rentalTypeID || null,
                 vehicleID: vehicleID || null,
                 holidayHomeID: holidayHomeID || null,
                 propertyID: propertyID || null,
                 startDate: startDate || null,
                 endDate: endDate || null,
-                updatedDate: new Date(),
-                updatedBy: 'System', // Or replace with user info
+                createdDate: now,
+                updatedDate: now,
+                updatedBy: 0,
             };
 
             const inquiryID = await inquiryRepository.saveInquiry(inquiryData);
             const rentalType = await commonRepository.getRentalTypeName(rentalTypeID);
 
-            if(rentalTypeID == 1)
-            {
+            if (rentalTypeID == 1) {
                 const vehicle = (await vehicleRepository.getVehicleByID(vehicleID)).data;
                 if (vehicle) {
                     rentalDetails = `${vehicle.make} ${vehicle.model} - ${vehicle.NumberPlate}`;
                 } else {
                     rentalDetails = `Vehicle with ID ${vehicleID} not found.`;
                 }
-                
-            }else if (rentalTypeID == 2)
-            {
+            } else if (rentalTypeID == 2) {
                 rentalDetails = await propertyRepository.getPropertyByID(propertyID).data.name;
-            }else if (rentalTypeID == 3) 
-            {
-                rentalDetails = "Newlands Bungalow Galle";
+            } else if (rentalTypeID == 3) {
+                rentalDetails = 'Newlands Bungalow Galle';
             }
 
-            dateDetails = startDate === endDate
-            ? new Date(startDate).toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-            })
-            : `${new Date(startDate).toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-            })} - ${new Date(endDate).toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-            })}`;
+            dateDetails =
+                startDate === endDate
+                    ? new Date(startDate).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                      })
+                    : `${new Date(startDate).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                      })} - ${new Date(endDate).toLocaleDateString('en-US', {
+                          weekday: 'long',
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                      })}`;
 
-            // Prepare email bodies
             const companyEmailBody = loadEmailTemplate('email-inquiry-details.html', {
                 name,
                 email,
@@ -127,7 +135,7 @@ class InquiryService {
                 message,
                 dateDetails,
                 rentalType,
-                rentalDetails
+                rentalDetails,
             });
 
             const customerEmailBody = loadEmailTemplate('inquiry-email-acknowledge.html', {
@@ -137,29 +145,31 @@ class InquiryService {
                 message,
                 dateDetails,
                 rentalType,
-                rentalDetails
+                rentalDetails,
             });
 
-            // Send email to the company
-            await emailHelper.sendEmail({
-                to: process.env.SUPPORT_EMAIL,
-                subject: `${rentalType} Inquiry from ${name}`,
-                html: companyEmailBody,
+            // Return success immediately; send both emails in the background
+            Promise.all([
+                emailHelper.sendEmailSafe({
+                    to: process.env.SUPPORT_EMAIL,
+                    subject: `${rentalType} Inquiry from ${name}`,
+                    html: companyEmailBody,
+                }),
+                emailHelper.sendEmailSafe({
+                    to: email,
+                    subject: 'Thank You for Your Inquiry!',
+                    html: customerEmailBody,
+                }),
+            ]).catch((err) => {
+                console.error('Inquiry email batch failed:', err.message);
             });
 
-            // Send acknowledgment email to the customer
-            await emailHelper.sendEmail({
-                to: email,
-                subject: 'Thank You for Your Inquiry!',
-                html: customerEmailBody,
-            });
-
-            return { inquiryID }; // Return the inquiry ID for tracking purposes
+            return { inquiryID };
         } catch (error) {
             console.error('Error in sendInquiryDetails service:', error.message, error.stack);
             throw new Error('Failed to handle the inquiry process.');
         }
-    };
+    }
 }
 
 module.exports = new InquiryService();
