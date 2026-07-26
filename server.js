@@ -1,13 +1,14 @@
 // server.js
 const express = require('express');
 const bodyParser = require('body-parser');
-const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 
 dotenv.config();
 
 const PORT = process.env.PORT || 3000;
+/** Bump when deploying so you can verify Namecheap picked up this file. */
+const CORS_BUILD = '2026-07-26-vercel';
 
 const app = express();
 
@@ -19,24 +20,25 @@ app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 /**
- * CORS: production domains + Vercel preview/production + optional CORS_ORIGINS env
- * (comma-separated extra origins, e.g. http://localhost:3000,https://my-app.vercel.app)
+ * CORS: production domains + any *.vercel.app + CORS_ORIGINS (comma-separated).
+ * Sets Access-Control-Allow-Origin to the request Origin (not a hardcoded www URL).
  */
-const staticAllowedOrigins = [
+const staticAllowedOrigins = new Set([
   'https://www.ytsenterprise.com',
   'https://ytsenterprise.com',
-];
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+]);
 
 const envOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map((o) => o.trim())
   .filter(Boolean);
+envOrigins.forEach((o) => staticAllowedOrigins.add(o));
 
 function isOriginAllowed(origin) {
-  if (!origin) return true; // non-browser / same-origin tools
-  if (staticAllowedOrigins.includes(origin)) return true;
-  if (envOrigins.includes(origin)) return true;
-  // Vercel deployments (production + preview)
+  if (!origin) return true;
+  if (staticAllowedOrigins.has(origin)) return true;
   try {
     const { hostname } = new URL(origin);
     if (hostname === 'vercel.app' || hostname.endsWith('.vercel.app')) return true;
@@ -46,18 +48,42 @@ function isOriginAllowed(origin) {
   return false;
 }
 
-app.use(cors({
-  origin(origin, callback) {
-    if (isOriginAllowed(origin)) {
-      callback(null, true);
-    } else {
-      callback(null, false);
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
-}));
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  // Prove which build answered (survives if LiteSpeed only overwrites ACAO)
+  res.setHeader('X-Yts-Cors-Build', CORS_BUILD);
+
+  if (origin && isOriginAllowed(origin)) {
+    // Must echo the request origin when credentials are used (cannot use *)
+    res.removeHeader('Access-Control-Allow-Origin');
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+    res.setHeader(
+      'Access-Control-Allow-Methods',
+      'GET,POST,PUT,DELETE,OPTIONS,PATCH'
+    );
+    res.setHeader(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization'
+    );
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  return next();
+});
+
+// Quick deploy check: GET /api/health → should show corsBuild + echo Origin if allowed
+app.get('/api/health', (req, res) => {
+  res.json({
+    ok: true,
+    corsBuild: CORS_BUILD,
+    requestOrigin: req.headers.origin || null,
+    allowVercel: true,
+  });
+});
 
 // Routes
 const inquiryRoutes = require('./src/routes/inquiryRoutes');
@@ -66,7 +92,7 @@ const propertyRoutes = require('./src/routes/propertyRoutes');
 const commonRoutes = require('./src/routes/commonRoutes');
 const authRoutes = require('./src/routes/authRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
-const holidayHomeRoutes = require('./src/routes/holidayHomeRoutes')
+const holidayHomeRoutes = require('./src/routes/holidayHomeRoutes');
 const blogRoutes = require('./src/routes/blogRoutes');
 const seoRoutes = require('./src/routes/seoRoutes');
 
@@ -76,7 +102,7 @@ app.use('/api/property', propertyRoutes);
 app.use('/api/common', commonRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/holidayHome', holidayHomeRoutes)
+app.use('/api/holidayHome', holidayHomeRoutes);
 app.use('/api/blog', blogRoutes);
 app.use('/api/seo', seoRoutes);
 
@@ -88,5 +114,5 @@ app.use((err, req, res, next) => {
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT} (corsBuild=${CORS_BUILD})`);
 });

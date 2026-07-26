@@ -32,7 +32,9 @@ transporter
   });
 
 function getLogoAttachment() {
-  if (!fs.existsSync(LOGO_PATH)) return null;
+  // Only when explicitly enabled — shared-host SMTP + attachments → Gmail Spam often
+  const useCid = String(process.env.EMAIL_USE_CID_LOGO || '').toLowerCase() === 'true';
+  if (!useCid || !fs.existsSync(LOGO_PATH)) return null;
   return {
     filename: 'yts-logo.png',
     path: LOGO_PATH,
@@ -48,12 +50,21 @@ exports.sendEmail = async ({ to, subject, html }) => {
   try {
     console.log(`Attempting to send email to: ${to}`);
 
+    const fromAddress = process.env.EMAIL_USER;
+    const replyTo = process.env.SUPPORT_EMAIL || fromAddress;
     const logoAttachment = getLogoAttachment();
     const mailOptions = {
-      from: `"YTS Enterprise" <${process.env.EMAIL_USER}>`,
+      from: `"YTS Enterprise" <${fromAddress}>`,
+      replyTo,
       to,
       subject,
       html,
+      // Helps filters treat this as a transactional ack, not bulk promo
+      headers: {
+        'X-Auto-Response-Suppress': 'OOF, AutoReply',
+        'List-Unsubscribe': `<mailto:${replyTo}?subject=unsubscribe>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
     };
 
     if (logoAttachment) {

@@ -18,10 +18,13 @@ function escapeHtml(value) {
 
 function getBrandDefaults() {
   const siteUrl = (process.env.FRONTEND_URL || DEFAULT_SITE_URL).replace(/\/$/, '');
-  // Prefer inline CID (attached by emailHelper) so clients like Gmail don't need to fetch the site
+  // Default: hosted image URL (no attachment). CID attachments often mark mail as
+  // "has attachment" and hurt Gmail spam scoring on shared hosting.
+  // Set EMAIL_USE_CID_LOGO=true to embed the logo as an inline attachment again.
+  const useCid = String(process.env.EMAIL_USE_CID_LOGO || '').toLowerCase() === 'true';
   const logoUrl =
     process.env.EMAIL_LOGO_URL ||
-    (fs.existsSync(LOGO_ASSET_PATH) ? `cid:${LOGO_CID}` : DEFAULT_LOGO_URL);
+    (useCid && fs.existsSync(LOGO_ASSET_PATH) ? `cid:${LOGO_CID}` : DEFAULT_LOGO_URL);
   const supportEmail = process.env.SUPPORT_EMAIL || 'support@ytsenterprise.com';
 
   return { logoUrl, siteUrl, supportEmail };
