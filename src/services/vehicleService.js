@@ -41,7 +41,7 @@ class VehicleService {
         // Validate required fields
         const requiredFields = ['make', 'model', 'fuelType', 'transmission', 
                               'numOfPassengers', 'vehicleClass', 'bodyStyle', 
-                              'dailyCharge', 'createdBy'];
+                              'dailyCharge', 'startingFromCharge', 'createdBy'];
         const missingFields = requiredFields.filter(field => !vehicleData[field]);
         
         if (missingFields.length > 0) {

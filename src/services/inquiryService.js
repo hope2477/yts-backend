@@ -103,7 +103,12 @@ class InquiryService {
                     rentalDetails = `Vehicle with ID ${vehicleID} not found.`;
                 }
             } else if (rentalTypeID == 2) {
-                rentalDetails = await propertyRepository.getPropertyByID(propertyID).data.name;
+                const property = (await propertyRepository.getPropertyByID(propertyID)).data;
+                if (property) {
+                    rentalDetails = property.name;
+                } else {
+                    rentalDetails = `Property with ID ${propertyID} not found.`;
+                }
             } else if (rentalTypeID == 3) {
                 rentalDetails = 'Newlands Bungalow Galle';
             }

@@ -136,7 +136,7 @@ class DashboardRepository {
           LEFT JOIN property p ON i.propertyID = p.id
           WHERE ${STATUS_PENDING.replace(/status/g, 'i.status')}
           ORDER BY COALESCE(i.createdDate, i.updatedDate) DESC
-          LIMIT 8
+          LIMIT 50
         `),
       ]);
 

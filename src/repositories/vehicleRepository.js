@@ -104,7 +104,8 @@ class VehicleRepository {
           v.image,
           v.dailyCharge, 
           v.weeklyCharge, 
-          v.monthlyCharge
+          v.monthlyCharge,
+          v.startingFromCharge
         FROM vehicle v
         JOIN rentalType rt ON v.rentalTypeId = rt.id
         WHERE v.id = ?
@@ -162,9 +163,9 @@ class VehicleRepository {
         INSERT INTO vehicle (
           make, model, year, fuelType, transmission, numOfPassengers, 
           vehicleClass, description, color, bodyStyle, dailyCharge, 
-          weeklyCharge, monthlyCharge, NumberPlate, image, isFeatured, 
+          weeklyCharge, monthlyCharge, startingFromCharge, NumberPlate, image, isFeatured, 
           isActive, createdBy, createdDate, rentalTypeId
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)
       `, [
         vehicleData.make,
         vehicleData.model,
@@ -179,6 +180,9 @@ class VehicleRepository {
         vehicleData.dailyCharge,
         vehicleData.weeklyCharge || 0,
         vehicleData.monthlyCharge || 0,
+        vehicleData.startingFromCharge != null && vehicleData.startingFromCharge !== ''
+          ? vehicleData.startingFromCharge
+          : null,
         vehicleData.NumberPlate || '',
         vehicleData.image || '', // Main image from first image in array
         vehicleData.isFeatured || false,
@@ -254,7 +258,8 @@ class VehicleRepository {
         `UPDATE vehicle 
         SET make=?, model=?, year=?, fuelType=?, transmission=?, 
             numOfPassengers=?, vehicleClass=?, description=?, color=?, 
-            bodyStyle=?, dailyCharge=?, weeklyCharge=?, monthlyCharge=?, 
+            bodyStyle=?, dailyCharge=?, weeklyCharge=?, monthlyCharge=?,
+            startingFromCharge=?,
             NumberPlate=?, image=?, isFeatured=?,
             updatedBy=?, updatedDate=NOW()
         WHERE id=?`,
@@ -272,6 +277,9 @@ class VehicleRepository {
           updateData.dailyCharge,
           updateData.weeklyCharge,
           updateData.monthlyCharge,
+          updateData.startingFromCharge != null && updateData.startingFromCharge !== ''
+            ? updateData.startingFromCharge
+            : null,
           updateData.NumberPlate,
           updateData.image, // Always use processed first image
           updateData.isFeatured,
@@ -486,7 +494,7 @@ class VehicleRepository {
         SELECT v.id, v.make, 
                CONCAT(v.model, ' (', v.year, ')') AS model,
                v.year, v.fuelType, v.transmission, v.numOfPassengers, v.vehicleClass, v.bodyStyle, v.isActive,
-               v.isFeatured, v.dailyCharge, v.weeklyCharge, v.monthlyCharge, v.description,
+               v.isFeatured, v.dailyCharge, v.weeklyCharge, v.monthlyCharge, v.startingFromCharge, v.description,
                rt.name AS type, v.rentalTypeID, v.image,
                (SELECT JSON_ARRAYAGG(
                   JSON_OBJECT('startDate', va.startDate, 'endDate', va.endDate)
