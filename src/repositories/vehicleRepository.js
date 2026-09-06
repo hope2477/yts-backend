@@ -130,6 +130,17 @@ class VehicleRepository {
         ORDER BY numID
       `, [id]);
 
+      const mainUrl = imageUploadHelper.getImageUrl(vehicle.image);
+      const galleryUrls = imageUploadHelper.getImageUrls(imageRows.map(row => row.image));
+      const mainFile = vehicle.image || '';
+      const orderedImages = [
+        ...(mainUrl ? [mainUrl] : []),
+        ...galleryUrls.filter((url) => {
+          const file = (url || '').split('/').pop();
+          return file !== mainFile && url !== mainUrl;
+        }),
+      ];
+
       // Get availability
       const [availabilityRows] = await db.query(`
         SELECT startDate, endDate
@@ -143,8 +154,8 @@ class VehicleRepository {
         isActive: Boolean(vehicle.isActive),
         isFeatured: Boolean(vehicle.isFeatured),
         features: featureRows,
-        image: imageUploadHelper.getImageUrl(vehicle.image), // Convert to full URL
-        images: imageUploadHelper.getImageUrls(imageRows.map(row => row.image)), // Convert to full URLs
+        image: mainUrl,
+        images: orderedImages,
         availability: availabilityRows
       };
     } catch (error) {
@@ -260,7 +271,7 @@ class VehicleRepository {
             numOfPassengers=?, vehicleClass=?, description=?, color=?, 
             bodyStyle=?, dailyCharge=?, weeklyCharge=?, monthlyCharge=?,
             startingFromCharge=?,
-            NumberPlate=?, image=?, isFeatured=?,
+            NumberPlate=?, image=?, isFeatured=COALESCE(?, isFeatured),
             updatedBy=?, updatedDate=NOW()
         WHERE id=?`,
         [
@@ -282,7 +293,11 @@ class VehicleRepository {
             : null,
           updateData.NumberPlate,
           updateData.image, // Always use processed first image
-          updateData.isFeatured,
+          updateData.isFeatured !== undefined && updateData.isFeatured !== null
+            ? updateData.isFeatured
+              ? 1
+              : 0
+            : null,
           updateData.updatedBy,
           id
         ]
@@ -592,7 +607,7 @@ class VehicleRepository {
         `SELECT image 
         FROM vehicleImages 
         WHERE vehicleID = ?
-        ORDER BY image`, // Order the images by the image column
+        ORDER BY numID`,
         [id]
       );
 
@@ -602,16 +617,25 @@ class VehicleRepository {
         featureName: feature.featureName,
       }));
       
-      const images = imageResult.map(image => imageUploadHelper.getImageUrl(image.image));
+      const mainUrl = imageUploadHelper.getImageUrl(vehicle.image);
+      const galleryUrls = imageUploadHelper.getImageUrls(imageResult.map(image => image.image));
+      const mainFile = vehicle.image || '';
+      const images = [
+        ...(mainUrl ? [mainUrl] : []),
+        ...galleryUrls.filter((url) => {
+          const file = (url || '').split('/').pop();
+          return file !== mainFile && url !== mainUrl;
+        }),
+      ];
 
       // Transform the vehicle data to convert isActive and isFeatured to boolean
       const result = {
         ...vehicle,
         isActive: Boolean(vehicle.isActive),
         isFeatured: Boolean(vehicle.isFeatured),
-        image: imageUploadHelper.getImageUrl(vehicle.image), // Convert to full URL
+        image: mainUrl,
         features,
-        images, // Add the images array with full URLs
+        images,
       };
 
       return { data: result };

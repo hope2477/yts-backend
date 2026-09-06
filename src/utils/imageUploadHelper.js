@@ -175,7 +175,8 @@ class ImageUploadHelper {
 
   /**
    * Process images for vehicle/property updates
-   * This handles mixed arrays of existing URLs and new base64 images
+   * This handles mixed arrays of existing URLs/filenames and new base64 images.
+   * Order of `imageData` is preserved: index 0 remains the main/thumbnail image.
    * @param {Array} imageData - Mixed array of existing filenames and new base64 images
    * @param {Array} existingImages - Current image filenames in database
    * @param {string} type - 'vehicle' or 'property'
@@ -189,39 +190,19 @@ class ImageUploadHelper {
       deletedImages: []
     };
 
+    const normalizedExisting = (existingImages || [])
+      .map((img) => this.getFilenameFromUrl(img))
+      .filter(Boolean);
+
     if (!imageData || !Array.isArray(imageData) || imageData.length === 0) {
-      result.mainImage = existingImages[0] || '';
-      result.allImages = [...existingImages];
+      result.mainImage = normalizedExisting[0] || '';
+      result.allImages = [...normalizedExisting];
       return result;
     }
 
-    const existingFilenames = [];
-    const newBase64Images = [];
-
-    imageData.forEach(item => {
-      if (typeof item === 'string') {
-        if (item.startsWith('data:image/')) {
-          newBase64Images.push(item);
-        } else {
-          existingFilenames.push(item);
-        }
-      }
-    });
-
-    // Remove duplicates from existing filenames
-    const uniqueExisting = [...new Set(existingFilenames)];
-
-    // Find images to delete (existing DB images not in updated list)
-    const imagesToDelete = existingImages.filter(img => !uniqueExisting.includes(img));
-    if (imagesToDelete.length > 0) {
-      const deletedCount = this.deleteMultipleImages(imagesToDelete);
-      result.deletedImages = imagesToDelete;
-      console.log(`Deleted ${deletedCount} images during update`);
-    }
-
-    // Find max numeric suffix for new images
+    // Find max numeric suffix so new files don't collide
     let maxSuffix = 0;
-    existingImages.forEach(img => {
+    normalizedExisting.forEach((img) => {
       const match = img.match(/-(\d+)\./);
       if (match) {
         const num = parseInt(match[1], 10);
@@ -229,22 +210,39 @@ class ImageUploadHelper {
       }
     });
 
-    // Save new base64 images with incremental suffix (SEO-friendly stem)
     const typeSuffix =
       type === 'property' ? 'apartment-rent-colombo' : 'car-rental-colombo';
     const stemBase = this.buildSeoFilenameStem(`${identifier} ${typeSuffix}`, 0).replace(/-0$/, '');
-    const newSavedImages = [];
-    for (let i = 0; i < newBase64Images.length; i++) {
-      const filename = `${stemBase}-${maxSuffix + i + 1}`;
-      const savedFilename = await this.saveBase64Image(newBase64Images[i], filename);
-      newSavedImages.push(savedFilename);
+
+    // Preserve caller order (thumbnail / images[0] must stay first)
+    const ordered = [];
+    const seen = new Set();
+    let nextSuffix = maxSuffix + 1;
+
+    for (const item of imageData) {
+      if (typeof item !== 'string' || !item.trim()) continue;
+
+      let filename = '';
+      if (item.startsWith('data:image/')) {
+        filename = await this.saveBase64Image(item, `${stemBase}-${nextSuffix++}`);
+      } else {
+        filename = this.getFilenameFromUrl(item);
+      }
+
+      if (!filename || seen.has(filename)) continue;
+      seen.add(filename);
+      ordered.push(filename);
     }
 
-    // Combine unique existing and new images
-    const allImages = [...uniqueExisting, ...newSavedImages];
+    const imagesToDelete = normalizedExisting.filter((img) => !seen.has(img));
+    if (imagesToDelete.length > 0) {
+      const deletedCount = this.deleteMultipleImages(imagesToDelete);
+      result.deletedImages = imagesToDelete;
+      console.log(`Deleted ${deletedCount} images during update`);
+    }
 
-    result.mainImage = allImages[0] || '';
-    result.allImages = allImages;
+    result.mainImage = ordered[0] || '';
+    result.allImages = ordered;
 
     return result;
   }
@@ -267,7 +265,9 @@ class ImageUploadHelper {
    */
   getImageUrls(filenames) {
     if (!Array.isArray(filenames)) return [];
-    return filenames.map(filename => `${this.frontendUrl}/uploads/rentalImages/${filename}`);
+    return filenames
+      .filter((filename) => typeof filename === 'string' && filename.trim())
+      .map((filename) => `${this.frontendUrl}/uploads/rentalImages/${filename.trim()}`);
   }
 
   /**

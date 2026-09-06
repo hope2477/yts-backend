@@ -245,7 +245,7 @@ class PropertyRepository {
             SET name=?, address=?, propertyType=?, propertyClass=?,
                 numOfBedrooms=?, numOfBathrooms=?, numOfVehicleParking=?,
                 description=?, furnishDetails=?, floor=?, dailyCharge=?,
-                weeklyCharge=?, monthlyCharge=?, image=?, isFeatured=?,
+                weeklyCharge=?, monthlyCharge=?, image=?, isFeatured=COALESCE(?, isFeatured),
                 updatedBy=?, updatedDate=NOW(), isSoldOut=?
             WHERE id=?`,
             [
@@ -263,7 +263,11 @@ class PropertyRepository {
                 updateData.weeklyCharge || null,
                 updateData.monthlyCharge || null,
                 updateData.image, // always first processed image
-                updateData.isFeatured || false,
+                updateData.isFeatured !== undefined && updateData.isFeatured !== null
+                    ? updateData.isFeatured
+                        ? 1
+                        : 0
+                    : null,
                 updateData.updatedBy,
                 updateData.isSoldOut || false,
                 id

@@ -155,12 +155,16 @@ class AdminVehicleController {
         );
       }
 
-      // Prepare updateData
+      // Prepare updateData — preserve flags not sent by the form (featured is toggled from the list)
       const updateData = {
         ...req.body,
         image: processedImages.allImages[0] || existingVehicle.image, // Main image
         images: processedImages.allImages,
-        updatedBy: req.user.id
+        updatedBy: req.user.id,
+        isFeatured:
+          req.body.isFeatured !== undefined
+            ? req.body.isFeatured
+            : existingVehicle.isFeatured,
       };
 
       // Validate features and availability

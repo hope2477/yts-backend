@@ -105,7 +105,7 @@ class BlogRepository {
         slug, title, excerpt, metaTitle, metaDescription, category, author, publishedAt, readingMinutes,
         coverImage, coverAlt, tags, body, isFeatured, isPublished, isActive,
         createdBy, createdDate
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS JSON), CAST(? AS JSON), ?, ?, 1, ?, NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, NOW())`,
       [
         data.slug,
         data.title,
@@ -118,6 +118,7 @@ class BlogRepository {
         data.readingMinutes,
         data.coverImage || null,
         data.coverAlt || null,
+        // Pass JSON strings directly — MariaDB rejects CAST(? AS JSON)
         JSON.stringify(data.tags || []),
         JSON.stringify(data.body || []),
         data.isFeatured ? 1 : 0,
@@ -134,7 +135,7 @@ class BlogRepository {
         slug = ?, title = ?, excerpt = ?, metaTitle = ?, metaDescription = ?,
         category = ?, author = ?,
         publishedAt = ?, readingMinutes = ?, coverImage = ?, coverAlt = ?,
-        tags = CAST(? AS JSON), body = CAST(? AS JSON),
+        tags = ?, body = ?,
         isFeatured = ?, isPublished = ?,
         updatedBy = ?, updatedDate = NOW()
        WHERE id = ? AND isActive = 1`,
@@ -150,6 +151,7 @@ class BlogRepository {
         data.readingMinutes,
         data.coverImage || null,
         data.coverAlt || null,
+        // Pass JSON strings directly — MariaDB rejects CAST(? AS JSON)
         JSON.stringify(data.tags || []),
         JSON.stringify(data.body || []),
         data.isFeatured ? 1 : 0,

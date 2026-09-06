@@ -169,7 +169,12 @@ class AdminPropertyController {
         image: processedImages.allImages[0] || existingProperty.image, // First image is main
         images: processedImages.allImages,
         updatedBy: req.user.id,
-        isSoldOut: req.body.isSoldOut || false
+        isSoldOut: req.body.isSoldOut || false,
+        // Featured is toggled from the list; preserve when the form omits it
+        isFeatured:
+          req.body.isFeatured !== undefined
+            ? req.body.isFeatured
+            : existingProperty.isFeatured,
       };
 
       // Validate arrays
