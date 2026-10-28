@@ -11,6 +11,20 @@ function parseJsonField(value, fallback) {
   }
 }
 
+/** MariaDB BIT(1) often comes back as Buffer — Boolean(Buffer) is always true. */
+function bitToBoolean(value) {
+  if (Buffer.isBuffer(value)) return value[0] === 1;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'boolean') return value;
+  if (value == null) return false;
+  return Boolean(Number(value));
+}
+
+/** Literal for BIT columns — parameterized 0/1 is unreliable on MariaDB BIT(1). */
+function bitLiteral(on) {
+  return on ? "b'1'" : "b'0'";
+}
+
 function resolveCoverImage(coverImage) {
   if (!coverImage) return '';
   if (
@@ -44,9 +58,9 @@ function mapBlogRow(row) {
     coverAlt: row.coverAlt || '',
     tags: parseJsonField(row.tags, []),
     body: parseJsonField(row.body, []),
-    isFeatured: Boolean(row.isFeatured),
-    isPublished: Boolean(row.isPublished),
-    isActive: Boolean(row.isActive),
+    isFeatured: bitToBoolean(row.isFeatured),
+    isPublished: bitToBoolean(row.isPublished),
+    isActive: bitToBoolean(row.isActive),
     createdDate: row.createdDate,
     updatedDate: row.updatedDate,
   };
@@ -100,12 +114,14 @@ class BlogRepository {
   }
 
   async createBlog(data) {
+    const featuredBit = bitLiteral(Boolean(data.isFeatured));
+    const publishedBit = bitLiteral(data.isPublished !== false);
     const [result] = await db.query(
       `INSERT INTO blog (
         slug, title, excerpt, metaTitle, metaDescription, category, author, publishedAt, readingMinutes,
         coverImage, coverAlt, tags, body, isFeatured, isPublished, isActive,
         createdBy, createdDate
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, NOW())`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${featuredBit}, ${publishedBit}, b'1', ?, NOW())`,
       [
         data.slug,
         data.title,
@@ -118,11 +134,8 @@ class BlogRepository {
         data.readingMinutes,
         data.coverImage || null,
         data.coverAlt || null,
-        // Pass JSON strings directly — MariaDB rejects CAST(? AS JSON)
         JSON.stringify(data.tags || []),
         JSON.stringify(data.body || []),
-        data.isFeatured ? 1 : 0,
-        data.isPublished !== false ? 1 : 0,
         data.createdBy,
       ]
     );
@@ -130,13 +143,15 @@ class BlogRepository {
   }
 
   async updateBlog(id, data) {
+    const featuredBit = bitLiteral(Boolean(data.isFeatured));
+    const publishedBit = bitLiteral(data.isPublished !== false);
     const [result] = await db.query(
       `UPDATE blog SET
         slug = ?, title = ?, excerpt = ?, metaTitle = ?, metaDescription = ?,
         category = ?, author = ?,
         publishedAt = ?, readingMinutes = ?, coverImage = ?, coverAlt = ?,
         tags = ?, body = ?,
-        isFeatured = ?, isPublished = ?,
+        isFeatured = ${featuredBit}, isPublished = ${publishedBit},
         updatedBy = ?, updatedDate = NOW()
        WHERE id = ? AND isActive = 1`,
       [
@@ -151,11 +166,8 @@ class BlogRepository {
         data.readingMinutes,
         data.coverImage || null,
         data.coverAlt || null,
-        // Pass JSON strings directly — MariaDB rejects CAST(? AS JSON)
         JSON.stringify(data.tags || []),
         JSON.stringify(data.body || []),
-        data.isFeatured ? 1 : 0,
-        data.isPublished !== false ? 1 : 0,
         data.updatedBy,
         id,
       ]
@@ -165,7 +177,7 @@ class BlogRepository {
 
   async deleteBlog(id, userId) {
     const [result] = await db.query(
-      `UPDATE blog SET isActive = 0, updatedBy = ?, updatedDate = NOW() WHERE id = ?`,
+      `UPDATE blog SET isActive = b'0', updatedBy = ?, updatedDate = NOW() WHERE id = ?`,
       [userId, id]
     );
     return result.affectedRows > 0;

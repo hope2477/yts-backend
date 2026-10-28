@@ -1,4 +1,25 @@
-const { loadEmailTemplate } = require('../helpers/emailTemplateHelper');
+const { loadEmailTemplate, escapeHtml } = require('../helpers/emailTemplateHelper');
+
+function formatInquiryDate(value) {
+    if (value == null || String(value).trim() === '') return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const label = date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+    });
+    return label === 'Invalid Date' ? '' : label;
+}
+
+function buildInquiryDateRow(startDate, endDate) {
+    const startLabel = formatInquiryDate(startDate);
+    const endLabel = formatInquiryDate(endDate);
+    if (!startLabel || !endLabel) return '';
+    const dateDetails = startLabel === endLabel ? startLabel : `${startLabel} - ${endLabel}`;
+    return `<p style="margin:0 0 10px 0;"><strong style="color:#0a1628;">Date:</strong> ${escapeHtml(dateDetails)}</p>`;
+}
 const emailHelper = require('../helpers/emailHelper');
 const inquiryRepository = require('../repositories/inquiryRepository');
 const commonRepository = require('../repositories/commonRepository');
@@ -71,7 +92,7 @@ class InquiryService {
     }) {
         try {
             let rentalDetails = '';
-            let dateDetails = '';
+            let customerRentalDetails = '';
             // Save the inquiry details to the database first
             const now = new Date();
             const inquiryData = {
@@ -99,6 +120,7 @@ class InquiryService {
                 const vehicle = (await vehicleRepository.getVehicleByID(vehicleID)).data;
                 if (vehicle) {
                     rentalDetails = `${vehicle.make} ${vehicle.model} - ${vehicle.NumberPlate}`;
+                    customerRentalDetails = `${vehicle.make} ${vehicle.model}`;
                 } else {
                     rentalDetails = `Vehicle with ID ${vehicleID} not found.`;
                 }
@@ -112,46 +134,37 @@ class InquiryService {
             } else if (rentalTypeID == 3) {
                 rentalDetails = 'Newlands Bungalow Galle';
             }
+            if (!customerRentalDetails) customerRentalDetails = rentalDetails;
 
-            dateDetails =
-                startDate === endDate
-                    ? new Date(startDate).toLocaleDateString('en-US', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                      })
-                    : `${new Date(startDate).toLocaleDateString('en-US', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                      })} - ${new Date(endDate).toLocaleDateString('en-US', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                      })}`;
+            const dateRow = buildInquiryDateRow(startDate, endDate);
 
-            const companyEmailBody = loadEmailTemplate('email-inquiry-details.html', {
-                name,
-                email,
-                phoneNumber,
-                message,
-                dateDetails,
-                rentalType,
-                rentalDetails,
-            });
+            const companyEmailBody = loadEmailTemplate(
+                'email-inquiry-details.html',
+                {
+                    name,
+                    email,
+                    phoneNumber,
+                    message,
+                    dateRow,
+                    rentalType,
+                    rentalDetails,
+                },
+                { rawKeys: ['dateRow'] }
+            );
 
-            const customerEmailBody = loadEmailTemplate('inquiry-email-acknowledge.html', {
-                name,
-                email,
-                phoneNumber,
-                message,
-                dateDetails,
-                rentalType,
-                rentalDetails,
-            });
+            const customerEmailBody = loadEmailTemplate(
+                'inquiry-email-acknowledge.html',
+                {
+                    name,
+                    email,
+                    phoneNumber,
+                    message,
+                    dateRow,
+                    rentalType,
+                    rentalDetails: customerRentalDetails,
+                },
+                { rawKeys: ['dateRow'] }
+            );
 
             // Return success immediately; send both emails in the background
             Promise.all([
