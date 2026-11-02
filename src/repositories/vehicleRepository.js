@@ -272,6 +272,7 @@ class VehicleRepository {
             bodyStyle=?, dailyCharge=?, weeklyCharge=?, monthlyCharge=?,
             startingFromCharge=?,
             NumberPlate=?, image=?, isFeatured=COALESCE(?, isFeatured),
+            isActive=COALESCE(?, isActive),
             updatedBy=?, updatedDate=NOW()
         WHERE id=?`,
         [
@@ -295,6 +296,11 @@ class VehicleRepository {
           updateData.image, // Always use processed first image
           updateData.isFeatured !== undefined && updateData.isFeatured !== null
             ? updateData.isFeatured
+              ? 1
+              : 0
+            : null,
+          updateData.isActive !== undefined && updateData.isActive !== null
+            ? updateData.isActive
               ? 1
               : 0
             : null,
@@ -498,6 +504,24 @@ class VehicleRepository {
     } catch (error) {
         console.error('Error updating vehicle featured status:', error.message);
         throw error;
+    }
+  }
+
+  async updateVehicleActiveStatus(id, isActive, userId) {
+    try {
+      const [result] = await db.query(
+        `UPDATE vehicle
+         SET isActive = ?,
+             isFeatured = CASE WHEN ? = 0 THEN 0 ELSE isFeatured END,
+             updatedBy = ?,
+             updatedDate = NOW()
+         WHERE id = ?`,
+        [isActive ? 1 : 0, isActive ? 1 : 0, userId, id]
+      );
+      return result.affectedRows > 0;
+    } catch (error) {
+      console.error('Error updating vehicle active status:', error.message);
+      throw error;
     }
   }
 

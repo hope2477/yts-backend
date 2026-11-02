@@ -70,7 +70,7 @@ class BlogRepository {
   async getPublishedBlogs() {
     const [rows] = await db.query(
       `SELECT * FROM blog
-       WHERE isActive = 1 AND isPublished = 1
+       WHERE CAST(isActive AS UNSIGNED) = 1 AND CAST(isPublished AS UNSIGNED) = 1
        ORDER BY publishedAt DESC, id DESC`
     );
     return rows.map(mapBlogRow);
@@ -78,7 +78,7 @@ class BlogRepository {
 
   async getBlogBySlug(slug, { publishedOnly = true } = {}) {
     let query = `SELECT * FROM blog WHERE slug = ? AND isActive = 1`;
-    if (publishedOnly) query += ` AND isPublished = 1`;
+    if (publishedOnly) query += ` AND CAST(isPublished AS UNSIGNED) = 1`;
     const [rows] = await db.query(query, [slug]);
     return mapBlogRow(rows[0]);
   }

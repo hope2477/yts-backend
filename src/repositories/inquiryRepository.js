@@ -38,8 +38,11 @@ class InquiryRepository {
             SELECT 
                 i.id, 
                 i.name, 
+                i.email,
                 i.contactNumber, 
                 i.createdDate,
+                i.startDate,
+                i.endDate,
                 rt.name as rentalTypeName,
                 CASE 
                     WHEN i.vehicleID IS NOT NULL THEN CONCAT(v.make, ' ', v.model, ' (', v.numberPlate, ')')
@@ -129,7 +132,7 @@ class InquiryRepository {
     async getInquiryStats() {
         try {
             const pendingSql = `LOWER(TRIM(status)) = 'pending'`;
-            const closedSql = `LOWER(TRIM(status)) IN ('approved', 'completed', 'rejected')`;
+            const closedSql = `LOWER(TRIM(status)) IN ('done', 'approved', 'completed', 'rejected')`;
 
             const [totalCount] = await db.query('SELECT COUNT(*) as count FROM inquiry');
             const [pendingCount] = await db.query(

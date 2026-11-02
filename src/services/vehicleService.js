@@ -92,6 +92,15 @@ class VehicleService {
           throw new Error('Unable to update vehicle featured status');
         }
       }
+
+      async updateVehicleActiveStatus(id, isActive, userId) {
+        try {
+          return await vehicleRepository.updateVehicleActiveStatus(id, isActive, userId);
+        } catch (error) {
+          console.error('Error updating vehicle active status:', error.message);
+          throw new Error('Unable to update vehicle active status');
+        }
+      }
   }
   
   module.exports = new VehicleService();

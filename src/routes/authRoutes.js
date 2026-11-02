@@ -32,6 +32,18 @@ router.get('/roles/:roleId/permissions',
   authMiddleware.requirePermission('admin.view'), 
   authController.getRolePermissions
 );
+router.get('/profile',
+  authMiddleware.verifyToken,
+  authController.getProfile
+);
+router.put('/profile',
+  authMiddleware.verifyToken,
+  authController.updateProfile
+);
+router.put('/change-password',
+  authMiddleware.verifyToken,
+  authController.changePassword
+);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
 

@@ -3,12 +3,31 @@ const imageUploadHelper = require('../utils/imageUploadHelper');
 
 /** Normalize inquiry status comparisons (Pending / PENDING / pending). */
 const STATUS_PENDING = `LOWER(TRIM(status)) = 'pending'`;
-const STATUS_CLOSED = `LOWER(TRIM(status)) IN ('approved', 'completed', 'rejected')`;
+const STATUS_CLOSED = `LOWER(TRIM(status)) IN ('done', 'approved', 'completed', 'rejected')`;
 
 const HOLIDAY_HOME_ID = 1;
 
 function toCount(rows) {
   return Number(rows?.[0]?.count) || 0;
+}
+
+function displayInquiryStatus(status) {
+  const key = String(status || '').trim().toLowerCase();
+  if (key === 'pending') return 'Pending';
+  if (key === 'in progress' || key === 'inprogress') return 'In progress';
+  if (key === 'done' || key === 'approved' || key === 'rejected' || key === 'completed') return 'Done';
+  return String(status || 'unknown');
+}
+
+function foldInquiryStatuses(rows) {
+  const counts = new Map();
+  for (const row of rows) {
+    const label = displayInquiryStatus(row.status);
+    counts.set(label, (counts.get(label) || 0) + (Number(row.count) || 0));
+  }
+  return [...counts.entries()]
+    .map(([status, count]) => ({ status, count }))
+    .sort((a, b) => b.count - a.count);
 }
 
 function mapInquiryRow(row) {
@@ -63,7 +82,7 @@ class DashboardRepository {
           'SELECT COUNT(*) AS count FROM vehicle WHERE isActive = 1 AND isFeatured = 1'
         ),
         db.query(
-          'SELECT COUNT(*) AS count FROM property WHERE isActive = 1 AND isFeatured = 1'
+          'SELECT COUNT(*) AS count FROM property WHERE CAST(isActive AS UNSIGNED) = 1 AND CAST(isFeatured AS UNSIGNED) = 1'
         ),
         db.query('SELECT COUNT(*) AS count FROM inquiry'),
         db.query(`SELECT COUNT(*) AS count FROM inquiry WHERE ${STATUS_PENDING}`),
@@ -155,11 +174,11 @@ class DashboardRepository {
       try {
         const [[published]] = await db.query(`
           SELECT COUNT(*) AS count FROM blog
-          WHERE isActive = 1 AND isPublished = 1
+          WHERE CAST(isActive AS UNSIGNED) = 1 AND CAST(isPublished AS UNSIGNED) = 1
         `);
         const [[draft]] = await db.query(`
           SELECT COUNT(*) AS count FROM blog
-          WHERE isActive = 1 AND (isPublished = 0 OR isPublished IS NULL)
+          WHERE CAST(isActive AS UNSIGNED) = 1 AND (CAST(isPublished AS UNSIGNED) = 0 OR isPublished IS NULL)
         `);
         blogsPublished = toCount([published]);
         blogsDraft = toCount([draft]);
@@ -212,10 +231,7 @@ class DashboardRepository {
             name: row.name,
             count: Number(row.count) || 0,
           })),
-          byStatus: (byStatusRows[0] || []).map((row) => ({
-            status: row.status || 'unknown',
-            count: Number(row.count) || 0,
-          })),
+          byStatus: foldInquiryStatuses(byStatusRows[0] || []),
         },
         inventoryHealth: {
           vehiclesUnavailableToday: toCount(vehiclesUnavailableToday),

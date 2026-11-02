@@ -1,6 +1,11 @@
 const db = require('../config/database');
 const imageUploadHelper = require('../utils/imageUploadHelper'); // Add this import
 
+function bitToBoolean(value) {
+  if (Buffer.isBuffer(value)) return value[0] === 1;
+  return Boolean(value);
+}
+
 class CommonRepository {
   async getFeaturedListings() {
     try {
@@ -10,7 +15,7 @@ class CommonRepository {
                     rt.name AS type, p.isActive, p.isFeatured, p.image
              FROM property p
              JOIN rentalType rt ON p.rentalTypeID = rt.id
-             WHERE p.isActive = 1 AND p.isFeatured = 1
+             WHERE CAST(p.isActive AS UNSIGNED) = 1 AND CAST(p.isFeatured AS UNSIGNED) = 1
              ORDER BY p.name ASC;`
         );
 
@@ -32,8 +37,8 @@ class CommonRepository {
         // Convert `isActive` and `isFeatured` to boolean for properties
         const featuredProperties = properties.map(property => ({
             ...property,
-            isActive: Boolean(property.isActive),
-            isFeatured: Boolean(property.isFeatured),
+            isActive: bitToBoolean(property.isActive),
+            isFeatured: bitToBoolean(property.isFeatured),
             image: imageUploadHelper.getImageUrl(property.image) // Add this line
         }));
 

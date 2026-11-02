@@ -70,7 +70,7 @@ class AuthController {
     try {
       const adminData = req.body;
       
-      const adminId = await authService.registerAdmin(adminData);
+      const adminId = await authService.registerAdmin(adminData, req.user?.id);
       
       res.status(201).json({
         success: true,
@@ -144,6 +144,34 @@ class AuthController {
         success: false,
         error: error.message
       });
+    }
+  }
+
+  async getProfile(req, res) {
+    try {
+      const profile = await authService.getProfile(req.user.id);
+      res.json({ success: true, data: profile });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async updateProfile(req, res) {
+    try {
+      const profile = await authService.updateProfile(req.user.id, req.body);
+      res.json({ success: true, data: profile });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
+    }
+  }
+
+  async changePassword(req, res) {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      await authService.changePassword(req.user.id, currentPassword, newPassword);
+      res.json({ success: true, message: 'Password updated' });
+    } catch (error) {
+      res.status(400).json({ success: false, error: error.message });
     }
   }
 

@@ -12,6 +12,7 @@ class AuthRepository {
         a.password_hash,
         a.phoneNumber,
         a.userName,
+        a.profileImage,
         a.isActive,
         a.role_id,
         r.name as role
@@ -33,6 +34,7 @@ class AuthRepository {
         a.email,
         a.phoneNumber,
         a.userName,
+        a.profileImage,
         a.isActive,
         a.role_id,
         r.name as role
@@ -111,7 +113,51 @@ class AuthRepository {
       [email, userName]
     );
     return rows.length > 0;
-  }   
+  }
+
+  async emailExists(email) {
+    const [rows] = await db.query(
+      `SELECT 1 FROM admin WHERE email = ? LIMIT 1`,
+      [email]
+    );
+    return rows.length > 0;
+  }
+
+  async userNameTaken(userName, excludeId) {
+    const params = [userName];
+    let query = `SELECT 1 FROM admin WHERE userName = ?`;
+    if (excludeId != null) {
+      query += ` AND id <> ?`;
+      params.push(excludeId);
+    }
+    query += ` LIMIT 1`;
+    const [rows] = await db.query(query, params);
+    return rows.length > 0;
+  }
+
+  async deleteAdmin(id) {
+    await db.query(`DELETE FROM password_reset_tokens WHERE user_id = ?`, [id]);
+    const [result] = await db.query(`DELETE FROM admin WHERE id = ?`, [id]);
+    return result.affectedRows > 0;
+  }
+
+  async updateAdminProfile(id, { firstName, lastName, userName, profileImage }) {
+    const [result] = await db.query(
+      `UPDATE admin
+       SET firstName = ?, lastName = ?, userName = ?, profileImage = ?, updatedBy = ?, updatedDate = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [firstName, lastName, userName, profileImage, id, id]
+    );
+    return result.affectedRows > 0;
+  }
+
+  async findAdminPasswordHash(id) {
+    const [rows] = await db.query(
+      `SELECT id, password_hash FROM admin WHERE id = ?`,
+      [id]
+    );
+    return rows[0];
+  } 
   
   async updateAdminStatus(adminId, isActive, updatedBy) {
     const [result] = await db.query(

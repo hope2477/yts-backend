@@ -37,7 +37,18 @@ class InquiryService {
     }
 
     async updateInquiryStatus(id, status, remarks, userId) {
-        return inquiryRepository.updateInquiryStatus(id, status, remarks, userId);
+        const key = String(status || '').trim().toLowerCase();
+        const canonical = key === 'pending'
+            ? 'Pending'
+            : key === 'in progress'
+                ? 'In progress'
+                : key === 'done'
+                    ? 'Done'
+                    : null;
+        if (!canonical) {
+            throw new Error('Status must be Pending, In progress, or Done');
+        }
+        return inquiryRepository.updateInquiryStatus(id, canonical, remarks, userId);
     }
 
     async deleteInquiry(id) {

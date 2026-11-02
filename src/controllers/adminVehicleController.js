@@ -297,6 +297,43 @@ class AdminVehicleController {
       });
     }
   }
+
+  async updateActiveStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const { isActive } = req.body;
+
+      if (typeof isActive !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          message: 'isActive must be a boolean value'
+        });
+      }
+
+      const updated = await vehicleService.updateVehicleActiveStatus(
+        id,
+        isActive,
+        req.user.id
+      );
+
+      if (!updated) {
+        return res.status(404).json({
+          success: false,
+          message: 'Vehicle not found'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: isActive ? 'Vehicle is active' : 'Vehicle is hidden'
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  }
 }
 
 module.exports = new AdminVehicleController();

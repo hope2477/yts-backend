@@ -526,7 +526,7 @@ class PropertyRepository {
                     [id]
                 );
                 
-                if (!activeCheck.length || !activeCheck[0].isActive) {
+                if (!activeCheck.length || !this.convertBitToBoolean(activeCheck[0].isActive)) {
                     return false; // Prevent featuring inactive properties
                 }
             }

@@ -78,6 +78,10 @@ router.put('/vehicles/:id/featured-status',
   authMiddleware.requirePermission('vehicle.update'), 
   adminVehicleController.updateFeaturedStatus
 );
+router.put('/vehicles/:id/active-status',
+  authMiddleware.requirePermission('vehicle.update'),
+  adminVehicleController.updateActiveStatus
+);
 
 // Property management routes
 router.get('/properties', 

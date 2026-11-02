@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const db = require('../config/database');
 
 class TokenService {
-  async generateResetToken(adminId) {
+  async generateResetToken(adminId, ttlMs = 60 * 60 * 1000) {
     // Clear any existing tokens first
     await db.query(
       'DELETE FROM password_reset_tokens WHERE user_id = ?',
@@ -11,7 +11,7 @@ class TokenService {
     );
 
     const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 15 minutes
+    const expiresAt = new Date(Date.now() + ttlMs);
     
     const [result] = await db.query(
       'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
@@ -37,6 +37,13 @@ class TokenService {
     
     console.log('Token validation result:', rows);
     return rows[0]?.user_id;  // Changed from admin_id to user_id
+  }
+
+  async deleteTokensForUser(adminId) {
+    await db.query(
+      'DELETE FROM password_reset_tokens WHERE user_id = ?',
+      [adminId]
+    );
   }
 
   async markTokenAsUsed(token) {
