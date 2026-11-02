@@ -27,30 +27,88 @@ function normalizeTags(tags) {
   return [];
 }
 
-function normalizeBody(body) {
+function normalizeBody(body, { allowEmpty = false } = {}) {
+  const emptyBody = [{ type: 'p', text: '' }];
   if (!Array.isArray(body) || body.length === 0) {
+    if (allowEmpty) return emptyBody;
     throw new Error('Body must include at least one block');
   }
 
-  return body.map((block, index) => {
+  const blocks = [];
+  for (let index = 0; index < body.length; index += 1) {
+    const block = body[index];
     if (!block || !ALLOWED_BLOCK_TYPES.includes(block.type)) {
       throw new Error(`Invalid body block at index ${index}`);
     }
     if (block.type === 'ul') {
-      if (!Array.isArray(block.items) || block.items.length === 0) {
+      const items = Array.isArray(block.items)
+        ? block.items.map((item) => String(item).trim()).filter(Boolean)
+        : [];
+      if (items.length === 0) {
+        if (allowEmpty) continue;
         throw new Error(`List block at index ${index} needs items`);
       }
-      return {
-        type: 'ul',
-        items: block.items.map((item) => String(item).trim()).filter(Boolean),
-      };
+      blocks.push({ type: 'ul', items });
+      continue;
     }
     const text = String(block.text || '').trim();
     if (!text) {
+      if (allowEmpty) continue;
       throw new Error(`Block at index ${index} needs text`);
     }
-    return { type: block.type, text };
-  });
+    blocks.push({ type: block.type, text });
+  }
+
+  if (blocks.length === 0) {
+    if (allowEmpty) return emptyBody;
+    throw new Error('Body must include at least one block');
+  }
+  return blocks;
+}
+
+function isDraft(input) {
+  return input.isPublished === false || input.isPublished === 0;
+}
+
+function publishedDate(value, draft) {
+  const text = String(value || '').slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  if (draft) return new Date().toISOString().slice(0, 10);
+  throw new Error('Published date is required');
+}
+
+function prepareBlog(input, draft) {
+  const title = String(input.title || '').trim();
+  if (!title) throw new Error('Title is required');
+
+  const slug = slugify(input.slug || title);
+  if (!slug) throw new Error('Slug is required');
+
+  let category = input.category;
+  if (!ALLOWED_CATEGORIES.includes(category)) {
+    if (!draft) {
+      throw new Error(`Invalid category. Allowed: ${ALLOWED_CATEGORIES.join(', ')}`);
+    }
+    category = 'Travel tips';
+  }
+
+  const excerpt = String(input.excerpt || '').trim();
+  const author = String(input.author || '').trim();
+  if (!draft) {
+    if (!excerpt) throw new Error('Summary is required');
+    if (!author) throw new Error('Author is required');
+    if (!input.coverImage) throw new Error('Cover image is required');
+  }
+
+  return {
+    slug,
+    title,
+    excerpt,
+    category,
+    author,
+    publishedAt: publishedDate(input.publishedAt, draft),
+    body: normalizeBody(input.body, { allowEmpty: draft }),
+  };
 }
 
 async function resolveCoverImageForSave(coverImage, slug) {
@@ -96,41 +154,28 @@ class BlogService {
   }
 
   async createBlog(input) {
-    const required = ['title', 'excerpt', 'category', 'author', 'publishedAt', 'createdBy'];
-    const missing = required.filter((field) => input[field] == null || input[field] === '');
-    if (missing.length) {
-      throw new Error(`Missing required fields: ${missing.join(', ')}`);
+    if (input.createdBy == null || input.createdBy === '') {
+      throw new Error('Missing required fields: createdBy');
     }
-    if (!ALLOWED_CATEGORIES.includes(input.category)) {
-      throw new Error(`Invalid category. Allowed: ${ALLOWED_CATEGORIES.join(', ')}`);
-    }
-
-    const slug = slugify(input.slug || input.title);
-    if (!slug) throw new Error('Slug is required');
-    if (await blogRepository.slugExists(slug)) {
+    const draft = isDraft(input);
+    const prepared = prepareBlog(input, draft);
+    if (await blogRepository.slugExists(prepared.slug)) {
       throw new Error('A blog with this slug already exists');
     }
 
-    const body = normalizeBody(input.body);
     const tags = normalizeTags(input.tags);
-    const coverImage = await resolveCoverImageForSave(input.coverImage, slug);
+    const coverImage = await resolveCoverImageForSave(input.coverImage, prepared.slug);
 
     return blogRepository.createBlog({
-      slug,
-      title: String(input.title).trim(),
-      excerpt: String(input.excerpt).trim(),
+      ...prepared,
       metaTitle: clip(input.metaTitle, 70),
       metaDescription: clip(input.metaDescription, 160),
-      category: input.category,
-      author: String(input.author).trim(),
-      publishedAt: String(input.publishedAt).slice(0, 10),
       readingMinutes: Number(input.readingMinutes) || 5,
       coverImage,
       coverAlt: input.coverAlt ? String(input.coverAlt).trim() : '',
       tags,
-      body,
       isFeatured: Boolean(input.isFeatured),
-      isPublished: input.isPublished !== false && input.isPublished !== 0,
+      isPublished: !draft,
       createdBy: input.createdBy,
     });
   }
@@ -139,36 +184,25 @@ class BlogService {
     const existing = await blogRepository.getBlogById(id);
     if (!existing) return false;
 
-    if (!ALLOWED_CATEGORIES.includes(input.category)) {
-      throw new Error(`Invalid category. Allowed: ${ALLOWED_CATEGORIES.join(', ')}`);
-    }
-
-    const slug = slugify(input.slug || input.title);
-    if (!slug) throw new Error('Slug is required');
-    if (await blogRepository.slugExists(slug, id)) {
+    const draft = isDraft(input);
+    const prepared = prepareBlog(input, draft);
+    if (await blogRepository.slugExists(prepared.slug, id)) {
       throw new Error('A blog with this slug already exists');
     }
 
-    const body = normalizeBody(input.body);
     const tags = normalizeTags(input.tags);
-    const coverImage = await resolveCoverImageForSave(input.coverImage, slug);
+    const coverImage = await resolveCoverImageForSave(input.coverImage, prepared.slug);
 
     return blogRepository.updateBlog(id, {
-      slug,
-      title: String(input.title).trim(),
-      excerpt: String(input.excerpt).trim(),
+      ...prepared,
       metaTitle: clip(input.metaTitle, 70),
       metaDescription: clip(input.metaDescription, 160),
-      category: input.category,
-      author: String(input.author).trim(),
-      publishedAt: String(input.publishedAt).slice(0, 10),
       readingMinutes: Number(input.readingMinutes) || 5,
       coverImage,
       coverAlt: input.coverAlt ? String(input.coverAlt).trim() : '',
       tags,
-      body,
       isFeatured: Boolean(input.isFeatured),
-      isPublished: input.isPublished !== false && input.isPublished !== 0,
+      isPublished: !draft,
       updatedBy: input.updatedBy,
     });
   }

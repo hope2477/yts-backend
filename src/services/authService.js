@@ -32,7 +32,13 @@ class AuthService {
   
     // Validation checks
     if (!admin) throw new Error('Admin not found');
-    if (!admin.isActive) throw new Error('Account is inactive');
+    if (!admin.isActive) {
+      throw new Error(
+        admin.mustSetPassword
+          ? 'Set your password from the email link before signing in.'
+          : 'Account is inactive'
+      );
+    }
     
     // Password verification
     const isPasswordValid = await bcrypt.compare(password, admin.password_hash);
@@ -121,7 +127,8 @@ class AuthService {
       phoneNumber: String(adminData.phoneNumber).trim(),
       role_id: adminData.role_id,
       password_hash,
-      isActive: adminData.isActive === false ? 0 : 1,
+      isActive: 0,
+      mustSetPassword: 1,
       createdBy,
       createdDate: new Date().toISOString().slice(0, 19).replace('T', ' ')
     };
@@ -173,8 +180,12 @@ class AuthService {
     if (!admin) throw new Error('Admin not found');
     
     // Prevent self-deactivation (optional)
-    if (adminId === updaterId) {
+    if (Number(adminId) === Number(updaterId)) {
       throw new Error('Cannot update your own active status');
+    }
+
+    if (isActive && admin.mustSetPassword) {
+      throw new Error('This user has to set a password before the account can be active.');
     }
     
     // Update status
@@ -199,13 +210,18 @@ class AuthService {
   async requestPasswordReset(email) {
     try {
       const admin = await authRepository.findAdminByEmail(email);
-      if (!admin || !admin.isActive) return { success: true }; // Silent fail
+      if (!admin) return { success: true };
+      if (!admin.isActive && !admin.mustSetPassword) return { success: true };
+
+      if (admin.mustSetPassword) {
+        const token = await tokenService.generateResetToken(admin.id, INVITE_TTL_MS);
+        await this.sendWelcomeEmail(admin, token);
+        return { success: true };
+      }
 
       const token = await tokenService.generateResetToken(admin.id);
-      console.log('Generated token:', token); // Debug log
-
       const resetLink = `${process.env.FRONTEND_URL}/admin/sign-in?token=${token}`;
-      
+
       const emailBody = loadEmailTemplate('password-reset.html', {
         name: `${admin.firstName} ${admin.lastName}`,
         resetLink,
@@ -223,6 +239,17 @@ class AuthService {
       console.error('Password reset error:', error);
       throw error;
     }
+  }
+
+  async resendInvite(adminId) {
+    const admin = await authRepository.getAdminById(adminId);
+    if (!admin) throw new Error('Admin not found');
+    if (!admin.mustSetPassword) {
+      throw new Error('This user already set a password. They can use Forgot password on the sign-in page.');
+    }
+    const token = await tokenService.generateResetToken(admin.id, INVITE_TTL_MS);
+    await this.sendWelcomeEmail(admin, token);
+    return { success: true };
   }
 
   async resetPassword(token, newPassword) {

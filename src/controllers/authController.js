@@ -186,6 +186,18 @@ class AuthController {
     }
   }
 
+  async resendInvite(req, res) {
+    try {
+      await authService.resendInvite(req.params.adminId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
+
   async resetPassword(req, res) {
     try {
       const { token, password } = req.body;

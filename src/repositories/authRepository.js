@@ -1,6 +1,11 @@
 // src/repositories/authRepository.js
 const db = require('../config/database');
 
+function bitOn(value) {
+  if (Buffer.isBuffer(value)) return value.length > 0 && value[0] === 1;
+  return value === 1 || value === true;
+}
+
 class AuthRepository {
   async findAdminByEmail(email) {
     const [rows] = await db.query(
@@ -13,7 +18,8 @@ class AuthRepository {
         a.phoneNumber,
         a.userName,
         a.profileImage,
-        a.isActive,
+        CAST(a.isActive AS UNSIGNED) AS isActive,
+        CAST(a.mustSetPassword AS UNSIGNED) AS mustSetPassword,
         a.role_id,
         r.name as role
        FROM admin a
@@ -21,7 +27,13 @@ class AuthRepository {
        WHERE a.email = ?`,
       [email]
     );
-    return rows[0];
+    const row = rows[0];
+    if (!row) return undefined;
+    return {
+      ...row,
+      isActive: bitOn(row.isActive),
+      mustSetPassword: bitOn(row.mustSetPassword)
+    };
   }
 
   async getAdminWithPermissions(adminId) {
@@ -71,6 +83,7 @@ class AuthRepository {
         a.phoneNumber,
         a.userName,
         CAST(a.isActive AS UNSIGNED) as isActive,
+        CAST(a.mustSetPassword AS UNSIGNED) AS mustSetPassword,
         a.role_id,
         r.name as role,
         a.createdDate,
@@ -82,15 +95,16 @@ class AuthRepository {
 
     return rows.map(row => ({
       ...row,
-      isActive: row.isActive === 1 || (Buffer.isBuffer(row.isActive) && row.isActive[0] === 1)
+      isActive: bitOn(row.isActive),
+      mustSetPassword: bitOn(row.mustSetPassword)
     }));
   }
 
   async createAdmin(adminData) {
     const [result] = await db.query(
       `INSERT INTO admin 
-      (firstName, lastName, userName, email, password_hash, phoneNumber, role_id, isActive, createdBy, createdDate) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (firstName, lastName, userName, email, password_hash, phoneNumber, role_id, isActive, mustSetPassword, createdBy, createdDate) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         adminData.firstName,
         adminData.lastName,
@@ -100,6 +114,7 @@ class AuthRepository {
         adminData.phoneNumber,
         adminData.role_id,
         adminData.isActive,
+        adminData.mustSetPassword,
         adminData.createdBy,
         adminData.createdDate
       ]
@@ -176,7 +191,8 @@ class AuthRepository {
         a.firstName, 
         a.lastName, 
         a.email, 
-        a.isActive,
+        CAST(a.isActive AS UNSIGNED) AS isActive,
+        CAST(a.mustSetPassword AS UNSIGNED) AS mustSetPassword,
         a.role_id,
         r.name as role
       FROM admin a
@@ -184,13 +200,24 @@ class AuthRepository {
       WHERE a.id = ?`,
       [adminId]
     );
-    return rows[0];
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      ...row,
+      isActive: bitOn(row.isActive),
+      mustSetPassword: bitOn(row.mustSetPassword)
+    };
   }
 
   async updateAdminPassword(userId, passwordHash) {
     const [result] = await db.query(
-      'UPDATE admin SET password_hash = ? WHERE id = ?',
-      [passwordHash, userId]  // Changed to use id instead of email
+      `UPDATE admin
+       SET password_hash = ?,
+           isActive = IF(CAST(mustSetPassword AS UNSIGNED) = 1, b'1', isActive),
+           mustSetPassword = b'0',
+           updatedDate = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [passwordHash, userId]
     );
     return result.affectedRows > 0;
   }

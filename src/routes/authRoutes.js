@@ -17,6 +17,11 @@ router.get('/admins',
   authMiddleware.requirePermission('admin.view'), 
   authController.getAllAdmins
 );
+router.post('/admin/:adminId/resend-invite',
+  authMiddleware.verifyToken,
+  authMiddleware.requirePermission('admin.create'),
+  authController.resendInvite
+);
 router.put('/admin/:adminId/status',
   authMiddleware.verifyToken, 
   authMiddleware.requirePermission('admin.view'), 
